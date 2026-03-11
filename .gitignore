@@ -1,0 +1,29 @@
+# ── Build output ──────────────────────────────────────────────────────────────
+cmake-build-*/
+build/
+.build/
+*.o
+*.a
+*.dylib
+
+# ── Generated app bundle ──────────────────────────────────────────────────────
+# Built by macapp/build.sh — not source, contains downloaded sing-box binary
+veil.app/
+veil-macos.zip
+
+# ── Claude Code internal settings ─────────────────────────────────────────────
+.claude/
+
+# ── Runtime / temp files ──────────────────────────────────────────────────────
+/tmp/veil_singbox.json
+/tmp/veil_singbox.log
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+
+# ── Swift Package Manager ─────────────────────────────────────────────────────
+.swiftpm/
+Package.resolved

@@ -1,0 +1,65 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'          # Запускается при push тега: git tag v1.0.0 && git push --tags
+  workflow_dispatch:  # Ручной запуск из GitHub UI
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: macos-15   # Apple Silicon (arm64)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift tests
+        run: swift test
+
+      - name: C++ tests
+        run: |
+          cmake -B cmake-build-ci -DCMAKE_BUILD_TYPE=Release
+          cmake --build cmake-build-ci --target test_vless_parser
+          ./cmake-build-ci/test_vless_parser
+
+      - name: Build veil.app
+        run: |
+          cd macapp
+          bash build.sh
+
+      - name: Verify binary
+        run: |
+          ls -lh veil.app/Contents/MacOS/veil
+          file veil.app/Contents/MacOS/veil
+
+      - name: Create ZIP
+        run: |
+          zip -r veil-macos.zip veil.app
+          echo "Archive size: $(du -sh veil-macos.zip | cut -f1)"
+
+      - name: Upload artifact (для каждого коммита)
+        uses: actions/upload-artifact@v4
+        with:
+          name: veil-macos
+          path: veil-macos.zip
+          retention-days: 30
+
+      - name: Create GitHub Release (только для тегов)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: veil-macos.zip
+          generate_release_notes: true
+          body: |
+            ## Veil для macOS
+
+            ### Установка
+            1. Скачай `veil-macos.zip`
+            2. Распакуй → перетащи `veil.app` в `/Applications`
+            3. Запусти — при первом запуске автоматически скачается sing-box (~15 МБ)
+
+            ### Требования
+            - macOS 13 Ventura или новее
+            - Apple Silicon (M1/M2/M3) или Intel
