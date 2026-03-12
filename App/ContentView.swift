@@ -3,10 +3,11 @@ import SwiftUI
 // MARK: - Main window
 
 struct ContentView: View {
-    @EnvironmentObject var vpn: VPNManager
-    @State private var urlText    = ""
-    @State private var parseInfo  = ""
-    @State private var parseOK    = false
+    @EnvironmentObject var vpn:  VPNManager
+    @EnvironmentObject var lang: LanguageManager
+    @State private var urlText   = ""
+    @State private var parseInfo = ""
+    @State private var parseOK   = false
 
     private var trimmed: String { urlText.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -39,9 +40,23 @@ struct ContentView: View {
             Circle()
                 .fill(stateColor)
                 .frame(width: 8, height: 8)
-            Text(vpn.state.label)
+            Text(stateLabel(vpn.state))
                 .font(.caption)
                 .foregroundColor(stateColor)
+            Divider().frame(height: 14)
+            Button {
+                lang.toggle()
+            } label: {
+                Text(lang.language == .ru ? "EN" : "RU")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.purple.opacity(0.8))
+                    .cornerRadius(4)
+            }
+            .buttonStyle(.plain)
+            .help(lang.t("Переключить язык", "Switch language"))
             Divider().frame(height: 14)
             Button {
                 if vpn.state.isConnected { vpn.disconnect() }
@@ -51,7 +66,7 @@ struct ContentView: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Выйти из приложения")
+            .help(lang.t("Выйти из приложения", "Quit application"))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
@@ -74,26 +89,35 @@ struct ContentView: View {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
-                        Text("VPN-движок не установлен")
+                        Text(lang.t("VPN-движок не установлен", "VPN engine not installed"))
                             .font(.callout.weight(.medium))
                     }
-                    Text("sing-box нужен для работы VLESS/VMess/SS/Trojan. Скачается автоматически (~15 МБ).")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Text(lang.t(
+                        "sing-box нужен для работы VLESS/VMess/SS/Trojan. Скачается автоматически (~15 МБ).",
+                        "sing-box is required for VLESS/VMess/SS/Trojan. Will be downloaded automatically (~15 MB)."
+                    ))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                     Button {
                         Task { await vpn.downloadSingBox() }
                     } label: {
-                        Label("Скачать sing-box", systemImage: "arrow.down.circle.fill")
-                            .frame(maxWidth: .infinity)
+                        Label(
+                            lang.t("Скачать sing-box", "Download sing-box"),
+                            systemImage: "arrow.down.circle.fill"
+                        )
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                 }
             }
         } label: {
-            Label("Требуется компонент", systemImage: "puzzlepiece")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.orange)
+            Label(
+                lang.t("Требуется компонент", "Component required"),
+                systemImage: "puzzlepiece"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundColor(.orange)
         }
     }
 
@@ -132,7 +156,7 @@ struct ContentView: View {
                                 .foregroundColor(.secondary)
                                 .frame(width: 18)
                             if let ms = vpn.pingMs {
-                                Text("\(ms) мс")
+                                Text("\(ms) \(lang.t("мс", "ms"))")
                                     .font(.caption2.monospaced().weight(.medium))
                                     .foregroundColor(ms < 100 ? .green : ms < 250 ? .orange : .red)
                             } else {
@@ -147,12 +171,12 @@ struct ContentView: View {
                         }
                     }
                 } else if vpn.state.isError {
-                    Label(vpn.state.label, systemImage: "exclamationmark.triangle")
+                    Label(stateLabel(vpn.state), systemImage: "exclamationmark.triangle")
                         .font(.caption)
                         .foregroundColor(.red)
                         .textSelection(.enabled)
                 } else {
-                    Text("Нет активного подключения")
+                    Text(lang.t("Нет активного подключения", "No active connection"))
                         .font(.caption).foregroundColor(.secondary)
                 }
 
@@ -161,24 +185,28 @@ struct ContentView: View {
                 HStack {
                     if vpn.state.isConnected {
                         Button(role: .destructive) { vpn.disconnect() } label: {
-                            Label("Отключить", systemImage: "xmark.circle.fill")
-                                .frame(maxWidth: .infinity)
+                            Label(
+                                lang.t("Отключить", "Disconnect"),
+                                systemImage: "xmark.circle.fill"
+                            )
+                            .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent).tint(.red)
                     } else if vpn.state.isConnecting {
                         ProgressView().scaleEffect(0.7)
-                        Text("Подключение…").font(.caption).foregroundColor(.orange)
+                        Text(lang.t("Подключение…", "Connecting…"))
+                            .font(.caption).foregroundColor(.orange)
                         Spacer()
-                        Button("Отмена") { vpn.disconnect() }
+                        Button(lang.t("Отмена", "Cancel")) { vpn.disconnect() }
                     } else {
-                        Text("Вставьте ссылку ниже")
+                        Text(lang.t("Вставьте ссылку ниже", "Paste a link below"))
                             .font(.caption).foregroundColor(.secondary)
                         Spacer()
                     }
                 }
             }
         } label: {
-            sectionLabel("Статус", icon: "antenna.radiowaves.left.and.right")
+            sectionLabel(lang.t("Статус", "Status"), icon: "antenna.radiowaves.left.and.right")
         }
     }
 
@@ -214,11 +242,13 @@ struct ContentView: View {
                 }
 
                 HStack(spacing: 8) {
-                    Button("Проверить") { checkURL() }
+                    Button(lang.t("Проверить", "Check")) { checkURL() }
                         .disabled(trimmed.isEmpty)
 
-                    Button("Вставить из буфера") { pasteFromClipboard() }
-                        .foregroundColor(.secondary)
+                    Button(lang.t("Вставить из буфера", "Paste from clipboard")) {
+                        pasteFromClipboard()
+                    }
+                    .foregroundColor(.secondary)
 
                     Spacer()
 
@@ -230,7 +260,9 @@ struct ContentView: View {
                         }
                     } label: {
                         Label(
-                            vpn.state.isConnected ? "Отключить" : "Подключить",
+                            vpn.state.isConnected
+                                ? lang.t("Отключить", "Disconnect")
+                                : lang.t("Подключить", "Connect"),
                             systemImage: vpn.state.isConnected ? "xmark.circle" : "play.circle.fill"
                         )
                     }
@@ -240,7 +272,7 @@ struct ContentView: View {
                 }
             }
         } label: {
-            sectionLabel("Импорт ссылки", icon: "link")
+            sectionLabel(lang.t("Импорт ссылки", "Import link"), icon: "link")
         }
     }
 
@@ -271,9 +303,9 @@ struct ContentView: View {
             }
         } label: {
             HStack {
-                sectionLabel("Лог", icon: "terminal")
+                sectionLabel(lang.t("Лог", "Log"), icon: "terminal")
                 Spacer()
-                Button("Очистить") { vpn.clearLog() }
+                Button(lang.t("Очистить", "Clear")) { vpn.clearLog() }
                     .font(.caption2)
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
@@ -291,10 +323,13 @@ struct ContentView: View {
                 parseInfo = "✅ \(cfg.protoName) · \(cfg.server):\(cfg.port)"
                     + (cfg.security.isEmpty || cfg.security == "none" ? "" : " · \(cfg.security.uppercased())")
                     + (cfg.sni.isEmpty ? "" : " · SNI: \(cfg.sni)")
-                    + (cfg.name.isEmpty || cfg.name == cfg.server ? "" : "\nПрофиль: \(cfg.name)")
+                    + (cfg.name.isEmpty || cfg.name == cfg.server
+                        ? ""
+                        : "\n\(lang.t("Профиль", "Profile")): \(cfg.name)")
                 parseOK = true
             } else {
-                parseInfo = "❌ Ссылка не содержит сервер или порт"; parseOK = false
+                parseInfo = "❌ \(lang.t("Ссылка не содержит сервер или порт", "Link has no server or port"))"
+                parseOK = false
             }
         } catch {
             parseInfo = "❌ \(error.localizedDescription)"; parseOK = false
@@ -317,6 +352,15 @@ struct ContentView: View {
     }
 
     // MARK: Helpers
+
+    private func stateLabel(_ state: VPNManager.State) -> String {
+        switch state {
+        case .disconnected: return lang.t("Отключено", "Disconnected")
+        case .connecting:   return lang.t("Подключение…", "Connecting…")
+        case .connected:    return lang.t("Подключено", "Connected")
+        case .error(let e): return e
+        }
+    }
 
     private var stateColor: Color {
         switch vpn.state {

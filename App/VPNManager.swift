@@ -160,8 +160,9 @@ final class VPNManager: ObservableObject {
     // MARK: - Download sing-box
 
     func downloadSingBox() async {
+        let L = LanguageManager.shared
         isDownloading  = true
-        downloadStatus = "Получение информации о версии…"
+        downloadStatus = L.t("Получение информации о версии…", "Fetching version info…")
         addLog("Скачивание sing-box с GitHub…")
 
         do {
@@ -187,13 +188,13 @@ final class VPNManager: ObservableObject {
                 throw SingBoxDownloadError.assetNotFound
             }
 
-            downloadStatus = "Скачивание sing-box \(tagName)…"
+            downloadStatus = L.t("Скачивание sing-box \(tagName)…", "Downloading sing-box \(tagName)…")
             addLog("Версия: \(tagName), архитектура: \(archSuffix)")
 
             // 3. Download tarball
             let (tmpURL, _) = try await URLSession.shared.download(from: dlURL)
 
-            downloadStatus = "Установка…"
+            downloadStatus = L.t("Установка…", "Installing…")
 
             // 4. Extract on background thread
             let installDir = Self.installDir
@@ -384,10 +385,11 @@ final class VPNManager: ObservableObject {
 enum SingBoxDownloadError: LocalizedError {
     case parseError, assetNotFound, extractFailed
     var errorDescription: String? {
+        let L = LanguageManager.shared
         switch self {
-        case .parseError:    return "Ошибка разбора ответа GitHub API"
-        case .assetNotFound: return "Бинарник для этой архитектуры не найден в релизе"
-        case .extractFailed: return "Ошибка распаковки архива"
+        case .parseError:    return L.t("Ошибка разбора ответа GitHub API", "Failed to parse GitHub API response")
+        case .assetNotFound: return L.t("Бинарник для этой архитектуры не найден в релизе", "Binary for this architecture not found in release")
+        case .extractFailed: return L.t("Ошибка распаковки архива", "Failed to extract archive")
         }
     }
 }

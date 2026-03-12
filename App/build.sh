@@ -51,6 +51,7 @@ swiftc \
     -framework AppKit \
     -framework Foundation \
     ProxyParser.swift \
+    LanguageManager.swift \
     VPNManager.swift \
     ContentView.swift \
     VeilApp.swift \
