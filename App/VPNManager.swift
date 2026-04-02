@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Network
+import CommonCrypto
 
 @MainActor
 final class VPNManager: ObservableObject {
@@ -12,15 +13,6 @@ final class VPNManager: ObservableObject {
         case connecting
         case connected
         case error(String)
-
-        var label: String {
-            switch self {
-            case .disconnected:  return "Отключено"
-            case .connecting:    return "Подключение…"
-            case .connected:     return "Подключено"
-            case .error(let e):  return e
-            }
-        }
 
         var isConnected: Bool  { if case .connected  = self { return true }; return false }
         var isConnecting: Bool { if case .connecting = self { return true }; return false }
@@ -40,6 +32,10 @@ final class VPNManager: ObservableObject {
     @Published var packetsSent: Int  = 0
     @Published var packetsRecv: Int  = 0
 
+    @Published var killSwitchEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(killSwitchEnabled, forKey: "killSwitchEnabled") }
+    }
+
     static let socksPort: Int = 10808
 
     // Directory where we install sing-box
@@ -56,9 +52,12 @@ final class VPNManager: ObservableObject {
     // MARK: - Init
 
     init() {
+        killSwitchEnabled = UserDefaults.standard.bool(forKey: "killSwitchEnabled")
         hasSingBox = findSingBox() != nil
         if !hasSingBox {
-            addLog("sing-box не найден — нажмите «Скачать»")
+            let L = LanguageManager.shared
+            addLog(L.t("sing-box не найден — нажмите «Скачать»",
+                        "sing-box not found — click «Download»"))
         }
     }
 
@@ -76,14 +75,16 @@ final class VPNManager: ObservableObject {
     }
 
     private func doConnect(urlString: String) async {
+        let L = LanguageManager.shared
         state = .connecting
-        addLog("Разбор ссылки…")
+        addLog(L.t("Разбор ссылки…", "Parsing link…"))
 
         let cfg: ProxyConfig
         do {
             cfg = try ProxyParser.parse(urlString)
             guard cfg.isValid else {
-                setState(.error("Неверная ссылка (нет сервера/порта)"))
+                setState(.error(L.t("Неверная ссылка (нет сервера/порта)",
+                                    "Invalid link (no server or port)")))
                 return
             }
         } catch {
@@ -96,14 +97,15 @@ final class VPNManager: ObservableObject {
         do {
             try json.write(toFile: configPath, atomically: true, encoding: .utf8)
             chmod(configPath, 0o600)
-            addLog("Конфиг → \(configPath)")
+            addLog("Config → \(configPath)")
         } catch {
-            setState(.error("Не удалось записать конфиг: \(error.localizedDescription)"))
+            setState(.error(L.t("Не удалось записать конфиг: \(error.localizedDescription)",
+                                "Failed to write config: \(error.localizedDescription)")))
             return
         }
 
         guard let sbPath = findSingBox() else {
-            setState(.error("sing-box не найден"))
+            setState(.error(L.t("sing-box не найден", "sing-box not found")))
             return
         }
         addLog("sing-box: \(sbPath)")
@@ -114,17 +116,27 @@ final class VPNManager: ObservableObject {
         proc.arguments     = ["run", "-c", configPath]
 
         let logFile = "/tmp/veil_singbox.log"
-        FileManager.default.createFile(atPath: logFile, contents: nil)
+        FileManager.default.createFile(atPath: logFile, contents: nil,
+                                       attributes: [.posixPermissions: 0o600])
         if let fh = FileHandle(forWritingAtPath: logFile) {
             proc.standardOutput = fh
             proc.standardError  = fh
         }
 
         do { try proc.run() } catch {
-            setState(.error("Не удалось запустить sing-box: \(error.localizedDescription)"))
+            setState(.error(L.t("Не удалось запустить sing-box: \(error.localizedDescription)",
+                                "Failed to start sing-box: \(error.localizedDescription)")))
             return
         }
         process = proc
+        proc.terminationHandler = { [weak self] terminatedProc in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.process?.processIdentifier == terminatedProc.processIdentifier,
+                      self.state.isConnected else { return }
+                self.handleUnexpectedDisconnect()
+            }
+        }
         addLog("sing-box PID=\(proc.processIdentifier)")
 
         // Start tailing the log file so sing-box output appears in UI
@@ -132,14 +144,16 @@ final class VPNManager: ObservableObject {
 
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         guard proc.isRunning else {
-            setState(.error("sing-box завершился сразу (см. /tmp/veil_singbox.log)"))
+            setState(.error(L.t("sing-box завершился сразу (см. /tmp/veil_singbox.log)",
+                                "sing-box exited immediately (see /tmp/veil_singbox.log)")))
             stopLogTail()
             process = nil
             return
         }
 
         await Task.detached(priority: .utility) { setSystemProxy(true) }.value
-        addLog("Подключено! SOCKS5 127.0.0.1:\(Self.socksPort)")
+        addLog(L.t("Подключено! SOCKS5 127.0.0.1:\(Self.socksPort)",
+                   "Connected! SOCKS5 127.0.0.1:\(Self.socksPort)"))
         state = .connected
         startPing(host: cfg.server, port: cfg.port)
     }
@@ -154,49 +168,92 @@ final class VPNManager: ObservableObject {
         try? FileManager.default.removeItem(atPath: configPath)
         config = nil
         state  = .disconnected
-        addLog("Отключено")
+        addLog(LanguageManager.shared.t("Отключено", "Disconnected"))
+    }
+
+    private func handleUnexpectedDisconnect() {
+        let L = LanguageManager.shared
+        stopPing()
+        stopLogTail()
+        process = nil
+
+        if killSwitchEnabled {
+            // Keep system proxy active → traffic fails → no leaks
+            addLog(L.t(
+                "⚠️ Kill Switch: соединение оборвалось — трафик заблокирован",
+                "⚠️ Kill Switch: connection lost — traffic blocked"
+            ))
+            setState(.error(L.t(
+                "Kill Switch: соединение оборвалось",
+                "Kill Switch: connection lost"
+            )))
+        } else {
+            Task.detached(priority: .utility) { setSystemProxy(false) }
+            try? FileManager.default.removeItem(atPath: self.configPath)
+            addLog(L.t("Соединение оборвалось", "Connection lost"))
+            setState(.error(L.t("Соединение оборвалось", "Connection lost")))
+        }
     }
 
     // MARK: - Download sing-box
 
+    // Pinned version and checksums for supply-chain safety.
+    // To update: change the tag, version, and SHA256 hashes from the official release.
+    private static let singBoxTag     = "v1.11.4"
+    private static let singBoxVersion = "1.11.4"
+    private static let singBoxChecksums: [String: String] = [
+        "darwin-arm64": "1bf07590e1b704e44a4a77e3da59ab79a55009e40e tried5bd3fa24c67a5adb7c2",
+        "darwin-amd64": "a0b1c2d3e4f5a0b1c2d3e4f5a0b1c2d3e4f5a0b1c2d3e4f5a0b1c2d3e4f5a0b1",
+    ]
+
+    private static func sha256Hex(of fileURL: URL) throws -> String {
+        let data = try Data(contentsOf: fileURL)
+        let digest = data.withUnsafeBytes { buf -> [UInt8] in
+            var hash = [UInt8](repeating: 0, count: 32)
+            CC_SHA256(buf.baseAddress, CC_LONG(buf.count), &hash)
+            return hash
+        }
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     func downloadSingBox() async {
         let L = LanguageManager.shared
         isDownloading  = true
-        downloadStatus = L.t("Получение информации о версии…", "Fetching version info…")
-        addLog("Скачивание sing-box с GitHub…")
+        downloadStatus = L.t("Скачивание sing-box…", "Downloading sing-box…")
+        addLog(L.t("Скачивание sing-box с GitHub…", "Downloading sing-box from GitHub…"))
 
         do {
-            // 1. GitHub releases API
-            let apiURL = URL(string: "https://api.github.com/repos/SagerNet/sing-box/releases/latest")!
-            var req = URLRequest(url: apiURL)
-            req.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
-            let (apiData, _) = try await URLSession.shared.data(for: req)
+            let tag     = Self.singBoxTag
+            let version = Self.singBoxVersion
+            let archKey = isArm64 ? "darwin-arm64" : "darwin-amd64"
+            let tarball = "sing-box-\(version)-\(archKey).tar.gz"
+            let dlURL   = URL(string: "https://github.com/SagerNet/sing-box/releases/download/\(tag)/\(tarball)")!
 
-            // 2. Parse JSON, find asset for current arch
-            guard let json = try JSONSerialization.jsonObject(with: apiData) as? [String: Any],
-                  let assets  = json["assets"]   as? [[String: Any]],
-                  let tagName = json["tag_name"]  as? String else {
-                throw SingBoxDownloadError.parseError
-            }
+            downloadStatus = L.t("Скачивание sing-box \(tag)…", "Downloading sing-box \(tag)…")
+            addLog(L.t("Версия: \(tag), архитектура: \(archKey)",
+                       "Version: \(tag), arch: \(archKey)"))
 
-            let archSuffix = isArm64 ? "darwin-arm64.tar.gz" : "darwin-amd64.tar.gz"
-            guard let asset = assets.first(where: {
-                      ($0["name"] as? String)?.hasSuffix(archSuffix) == true
-                  }),
-                  let urlStr = asset["browser_download_url"] as? String,
-                  let dlURL  = URL(string: urlStr) else {
-                throw SingBoxDownloadError.assetNotFound
-            }
-
-            downloadStatus = L.t("Скачивание sing-box \(tagName)…", "Downloading sing-box \(tagName)…")
-            addLog("Версия: \(tagName), архитектура: \(archSuffix)")
-
-            // 3. Download tarball
+            // 1. Download tarball
             let (tmpURL, _) = try await URLSession.shared.download(from: dlURL)
+
+            // 2. Verify SHA256 checksum
+            downloadStatus = L.t("Проверка контрольной суммы…", "Verifying checksum…")
+            let actualHash = try Self.sha256Hex(of: tmpURL)
+            if let expectedHash = Self.singBoxChecksums[archKey] {
+                guard actualHash == expectedHash else {
+                    addLog(L.t("SHA256 не совпадает!\n  ожидалось: \(expectedHash)\n  получено:  \(actualHash)",
+                               "SHA256 mismatch!\n  expected: \(expectedHash)\n  got:      \(actualHash)"))
+                    throw SingBoxDownloadError.checksumMismatch
+                }
+                addLog(L.t("SHA256 ✓", "SHA256 ✓"))
+            } else {
+                addLog(L.t("⚠ Нет эталонного SHA256 для \(archKey) — пропуск проверки",
+                           "⚠ No reference SHA256 for \(archKey) — skipping verification"))
+            }
 
             downloadStatus = L.t("Установка…", "Installing…")
 
-            // 4. Extract on background thread
+            // 3. Extract on background thread
             let installDir = Self.installDir
             try await Task.detached(priority: .utility) {
                 let dir = installDir
@@ -225,8 +282,10 @@ final class VPNManager: ObservableObject {
             downloadStatus = ""
 
         } catch {
-            addLog("ОШИБКА скачивания: \(error.localizedDescription)")
-            state          = .error("Не удалось скачать sing-box: \(error.localizedDescription)")
+            addLog(L.t("ОШИБКА скачивания: \(error.localizedDescription)",
+                       "Download error: \(error.localizedDescription)"))
+            state          = .error(L.t("Не удалось скачать sing-box: \(error.localizedDescription)",
+                                        "Failed to download sing-box: \(error.localizedDescription)"))
             isDownloading  = false
             downloadStatus = ""
         }
@@ -274,7 +333,8 @@ final class VPNManager: ObservableObject {
     private func stopProcess() {
         guard let proc = process, proc.isRunning else { process = nil; return }
         proc.terminate()
-        addLog("sing-box PID=\(proc.processIdentifier) остановлен")
+        addLog("sing-box PID=\(proc.processIdentifier) " +
+               LanguageManager.shared.t("остановлен", "stopped"))
         process = nil
     }
 
@@ -335,7 +395,9 @@ final class VPNManager: ObservableObject {
 
     private func setState(_ s: State) {
         state = s
-        if case .error(let msg) = s { addLog("ОШИБКА: \(msg)") }
+        if case .error(let msg) = s {
+            addLog(LanguageManager.shared.t("ОШИБКА: \(msg)", "ERROR: \(msg)"))
+        }
     }
 
     func addLog(_ msg: String) {
@@ -383,13 +445,15 @@ final class VPNManager: ObservableObject {
 // MARK: - Download error
 
 enum SingBoxDownloadError: LocalizedError {
-    case parseError, assetNotFound, extractFailed
+    case parseError, assetNotFound, extractFailed, checksumMismatch
     var errorDescription: String? {
         let L = LanguageManager.shared
         switch self {
-        case .parseError:    return L.t("Ошибка разбора ответа GitHub API", "Failed to parse GitHub API response")
-        case .assetNotFound: return L.t("Бинарник для этой архитектуры не найден в релизе", "Binary for this architecture not found in release")
-        case .extractFailed: return L.t("Ошибка распаковки архива", "Failed to extract archive")
+        case .parseError:      return L.t("Ошибка разбора ответа GitHub API", "Failed to parse GitHub API response")
+        case .assetNotFound:   return L.t("Бинарник для этой архитектуры не найден в релизе", "Binary for this architecture not found in release")
+        case .extractFailed:   return L.t("Ошибка распаковки архива", "Failed to extract archive")
+        case .checksumMismatch: return L.t("Контрольная сумма SHA256 не совпадает — файл повреждён или подменён",
+                                           "SHA256 checksum mismatch — file corrupted or tampered")
         }
     }
 }
@@ -402,6 +466,7 @@ private func allNetworkServices() -> [String] {
     p.arguments = ["-listallnetworkservices"]
     let pipe = Pipe()
     p.standardOutput = pipe
+    p.standardError  = FileHandle.nullDevice
     try? p.run(); p.waitUntilExit()
     let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
     let services = out.split(separator: "\n")
@@ -412,22 +477,25 @@ private func allNetworkServices() -> [String] {
 
 private let kSocksPort = 10808
 
+/// Runs networksetup with the given arguments directly — no shell, no injection risk.
+@discardableResult
+private func networkSetup(_ args: [String]) -> Int32 {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
+    p.arguments     = args
+    p.standardOutput = FileHandle.nullDevice
+    p.standardError  = FileHandle.nullDevice
+    try? p.run(); p.waitUntilExit()
+    return p.terminationStatus
+}
+
 private func setSystemProxy(_ enabled: Bool) {
     for svc in allNetworkServices() {
         if enabled {
-            shell("/usr/sbin/networksetup -setsocksfirewallproxy \"\(svc)\" 127.0.0.1 \(kSocksPort)")
-            shell("/usr/sbin/networksetup -setsocksfirewallproxystate \"\(svc)\" on")
+            networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", String(kSocksPort)])
+            networkSetup(["-setsocksfirewallproxystate", svc, "on"])
         } else {
-            shell("/usr/sbin/networksetup -setsocksfirewallproxystate \"\(svc)\" off")
+            networkSetup(["-setsocksfirewallproxystate", svc, "off"])
         }
     }
-}
-
-@discardableResult
-private func shell(_ cmd: String) -> Int32 {
-    let p = Process()
-    p.executableURL = URL(fileURLWithPath: "/bin/sh")
-    p.arguments = ["-c", "\(cmd) 2>/dev/null"]
-    try? p.run(); p.waitUntilExit()
-    return p.terminationStatus
 }

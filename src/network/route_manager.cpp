@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <iostream>
+#include <fstream>
 #include <stdexcept>
 #include <array>
 #include <memory>
@@ -198,9 +199,34 @@ std::string RouteManager::get_default_gateway() {
 }
 
 std::string RouteManager::get_primary_service() {
-    // Get the primary network service name for networksetup
-    std::string out = exec_cmd("networksetup -listallnetworkservices 2>/dev/null | grep -v '^An asterisk' | head -2 | tail -1");
-    return out;
+    // Determine the active network service by finding the interface used for
+    // the default route, then mapping it back to a networksetup service name.
+    std::string iface = exec_cmd("route -n get default 2>/dev/null | awk '/interface:/{print $2}'");
+    if (!iface.empty() && is_safe_shell_string(iface)) {
+        // Map interface (e.g. "en0") to service name (e.g. "Wi-Fi")
+        std::string order = exec_cmd("networksetup -listallhardwareports 2>/dev/null");
+        std::istringstream iss(order);
+        std::string line, current_service;
+        while (std::getline(iss, line)) {
+            // Lines look like:
+            //   Hardware Port: Wi-Fi
+            //   Device: en0
+            if (line.find("Hardware Port: ") == 0) {
+                current_service = line.substr(15);
+            } else if (line.find("Device: ") == 0) {
+                std::string dev = line.substr(8);
+                // Trim whitespace
+                while (!dev.empty() && (dev.back() == ' ' || dev.back() == '\r'))
+                    dev.pop_back();
+                if (dev == iface && !current_service.empty()) {
+                    return current_service;
+                }
+            }
+        }
+    }
+    // Fallback: first non-asterisk service
+    std::string fallback = exec_cmd("networksetup -listallnetworkservices 2>/dev/null | grep -v '^An asterisk' | head -2 | tail -1");
+    return fallback;
 }
 
 void RouteManager::save_default_route() {
@@ -233,6 +259,16 @@ bool RouteManager::set_dns(const std::vector<std::string>& servers) {
         }
     }
 
+    // Save original /etc/resolv.conf contents before overwriting
+    {
+        std::ifstream ifs("/etc/resolv.conf");
+        if (ifs.is_open()) {
+            std::ostringstream ss;
+            ss << ifs.rdbuf();
+            saved_resolv_conf_ = ss.str();
+        }
+    }
+
     // Write /etc/resolv.conf as well (for applications that use it directly)
     FILE* f = fopen("/etc/resolv.conf", "w");
     if (f) {
@@ -262,6 +298,7 @@ bool RouteManager::set_dns(const std::vector<std::string>& servers) {
 void RouteManager::restore_dns() {
     if (!dns_modified_) return;
 
+    // Restore networksetup DNS
     if (!saved_dns_service_.empty() && is_safe_shell_string(saved_dns_service_)) {
         std::string cmd = "networksetup -setdnsservers \"" + saved_dns_service_ + "\"";
         if (saved_dns_servers_.empty()) {
@@ -272,6 +309,17 @@ void RouteManager::restore_dns() {
             }
         }
         run_cmd(cmd);
+    }
+
+    // Restore /etc/resolv.conf to its original contents
+    if (!saved_resolv_conf_.empty()) {
+        FILE* f = fopen("/etc/resolv.conf", "w");
+        if (f) {
+            fwrite(saved_resolv_conf_.data(), 1, saved_resolv_conf_.size(), f);
+            fclose(f);
+            std::cout << "[ROUTE] Restored /etc/resolv.conf" << std::endl;
+        }
+        saved_resolv_conf_.clear();
     }
 
     dns_modified_ = false;

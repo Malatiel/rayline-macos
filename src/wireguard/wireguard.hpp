@@ -17,8 +17,8 @@ namespace wireguard {
 // Callback types
 using PacketCallback = std::function<void(const uint8_t* data, size_t len)>;
 
-// Resolve "host:port" -> sockaddr_in
-bool resolve_endpoint(const std::string& endpoint, struct sockaddr_in& addr);
+// Resolve "host:port" or "[host]:port" -> sockaddr_storage (IPv4 or IPv6)
+bool resolve_endpoint(const std::string& endpoint, struct sockaddr_storage& addr, socklen_t& addr_len);
 
 class WireGuardPeer {
 public:
@@ -111,7 +111,8 @@ private:
 
     // UDP socket to peer
     int                        udp_fd_ = -1;
-    struct sockaddr_in         peer_addr_{};
+    struct sockaddr_storage    peer_addr_{};
+    socklen_t                  peer_addr_len_ = 0;
 
     // Timing
     std::chrono::steady_clock::time_point last_handshake_time_{};

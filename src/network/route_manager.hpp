@@ -55,6 +55,7 @@ private:
     std::string          saved_default_gw_;
     std::string          saved_dns_service_;
     std::vector<std::string> saved_dns_servers_;
+    std::string          saved_resolv_conf_;
     bool                 dns_modified_ = false;
     bool                 default_route_saved_ = false;
 };

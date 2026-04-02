@@ -7,7 +7,7 @@ import AppKit
 @main
 struct VeilApp: App {
     @StateObject private var vpn  = VPNManager()
-    @StateObject private var lang = LanguageManager.shared
+    @ObservedObject private var lang = LanguageManager.shared
 
     var body: some Scene {
         // MenuBarExtra gives a native status-bar popover window (like v2Box)

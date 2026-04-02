@@ -182,6 +182,26 @@ struct ContentView: View {
 
                 Divider()
 
+                HStack(spacing: 6) {
+                    Image(systemName: vpn.killSwitchEnabled ? "shield.slash.fill" : "shield.slash")
+                        .font(.caption)
+                        .foregroundColor(vpn.killSwitchEnabled ? .red : .secondary)
+                    Text("Kill Switch")
+                        .font(.caption)
+                        .foregroundColor(vpn.killSwitchEnabled ? .primary : .secondary)
+                    Spacer()
+                    Toggle("", isOn: $vpn.killSwitchEnabled)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .labelsHidden()
+                }
+                .help(lang.t(
+                    "Блокирует весь трафик при обрыве VPN-соединения",
+                    "Blocks all traffic if the VPN connection drops"
+                ))
+
+                Divider()
+
                 HStack {
                     if vpn.state.isConnected {
                         Button(role: .destructive) { vpn.disconnect() } label: {

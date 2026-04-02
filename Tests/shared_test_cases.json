@@ -1,0 +1,165 @@
+{
+  "_comment": "Shared proxy parser test cases for C++ and Swift. Both test suites must validate against these URIs to prevent drift between implementations.",
+  "parse_tests": [
+    {
+      "name": "vless_basic_tls",
+      "uri": "vless://a1b2c3d4-e5f6-7890-abcd-ef1234567890@example.com:443?security=tls&type=tcp&sni=example.com#MyServer",
+      "expect": {
+        "valid": true,
+        "protocol": "vless",
+        "server": "example.com",
+        "port": 443,
+        "uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "security": "tls",
+        "network": "tcp",
+        "sni": "example.com",
+        "name": "MyServer"
+      }
+    },
+    {
+      "name": "vless_reality",
+      "uri": "vless://uuid-1234@srv.example.com:8443?security=reality&sni=google.com&pbk=PUBLICKEY123&sid=SHORTID&fp=chrome&type=tcp#Reality",
+      "expect": {
+        "valid": true,
+        "protocol": "vless",
+        "security": "reality",
+        "sni": "google.com",
+        "pbk": "PUBLICKEY123",
+        "short_id": "SHORTID",
+        "fp": "chrome"
+      }
+    },
+    {
+      "name": "vless_websocket",
+      "uri": "vless://myuuid@cdn.example.com:80?security=none&type=ws&path=%2Fvless&host=cdn.example.com#WS",
+      "expect": {
+        "valid": true,
+        "network": "ws",
+        "path": "/vless",
+        "host": "cdn.example.com",
+        "security": "none"
+      }
+    },
+    {
+      "name": "vless_no_fragment_name_fallback",
+      "uri": "vless://uuid@host.com:443?security=tls",
+      "expect": {
+        "valid": true,
+        "name": "host.com"
+      }
+    },
+    {
+      "name": "vless_allow_insecure",
+      "uri": "vless://uuid@h.com:443?security=tls&allowInsecure=1",
+      "expect": {
+        "valid": true,
+        "allow_insecure": true
+      }
+    },
+    {
+      "name": "vless_ipv6",
+      "uri": "vless://myuuid@[2001:db8::1]:443?security=tls#IPv6Node",
+      "expect": {
+        "valid": true,
+        "server": "2001:db8::1",
+        "port": 443
+      }
+    },
+    {
+      "name": "vless_grpc",
+      "uri": "vless://uuid@grpc.example.com:443?security=tls&type=grpc&path=myService",
+      "expect": {
+        "valid": true,
+        "network": "grpc"
+      }
+    },
+    {
+      "name": "vless_url_encoded_name",
+      "uri": "vless://uuid@host.com:443?security=tls#%D0%9C%D0%BE%D0%B9%20%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80",
+      "expect": {
+        "valid": true,
+        "name": "Мой сервер"
+      }
+    },
+    {
+      "name": "vmess_basic",
+      "uri": "vmess://eyJ2IjoiMiIsInBzIjoiVGVzdCIsImFkZCI6InZtZXNzLmhvc3QiLCJwb3J0IjoiMTAwODYiLCJpZCI6Im15LXV1aWQiLCJuZXQiOiJ3cyIsInBhdGgiOiIvd3MiLCJ0bHMiOiJ0bHMifQ==",
+      "expect": {
+        "valid": true,
+        "protocol": "vmess",
+        "server": "vmess.host",
+        "port": 10086,
+        "uuid": "my-uuid",
+        "network": "ws",
+        "path": "/ws",
+        "security": "tls",
+        "name": "Test"
+      }
+    },
+    {
+      "name": "ss_sip002",
+      "uri": "ss://YWVzLTI1Ni1nY206bXlwYXNzd29yZA==@ss.example.com:8388#ShadowTest",
+      "expect": {
+        "valid": true,
+        "protocol": "shadowsocks",
+        "server": "ss.example.com",
+        "port": 8388,
+        "method": "aes-256-gcm",
+        "uuid": "mypassword",
+        "name": "ShadowTest"
+      }
+    },
+    {
+      "name": "ss_name_fallback",
+      "uri": "ss://YWVzLTI1Ni1nY206cGFzcw==@host.com:443",
+      "expect": {
+        "valid": true,
+        "name": "host.com"
+      }
+    },
+    {
+      "name": "trojan_basic",
+      "uri": "trojan://secretpassword@trojan.example.com:443?sni=trojan.example.com#TrojanNode",
+      "expect": {
+        "valid": true,
+        "protocol": "trojan",
+        "server": "trojan.example.com",
+        "port": 443,
+        "uuid": "secretpassword",
+        "sni": "trojan.example.com",
+        "name": "TrojanNode",
+        "security": "tls"
+      }
+    },
+    {
+      "name": "trojan_allow_insecure",
+      "uri": "trojan://pass@host.com:443?allowInsecure=true",
+      "expect": {
+        "valid": true,
+        "allow_insecure": true
+      }
+    },
+    {
+      "name": "trojan_default_tls",
+      "uri": "trojan://pw@t.example.com:443",
+      "expect": {
+        "valid": true,
+        "security": "tls"
+      }
+    },
+    {
+      "name": "unknown_scheme_invalid",
+      "uri": "wireguard://something",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "name": "empty_server_invalid",
+      "uri": "vless://uuid@:443?security=tls",
+      "expect": {
+        "valid": false
+      }
+    }
+  ]
+}

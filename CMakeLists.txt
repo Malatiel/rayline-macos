@@ -34,6 +34,14 @@ target_include_directories(test_proxy_parser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 target_compile_options(test_proxy_parser PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME proxy_parser COMMAND test_proxy_parser)
 
+add_executable(test_shared_cases
+    Tests/test_shared_cases.cpp
+    src/proxy/proxy_parser.cpp
+)
+target_include_directories(test_shared_cases PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(test_shared_cases PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME shared_cases COMMAND test_shared_cases ${CMAKE_CURRENT_SOURCE_DIR}/Tests/shared_test_cases.json)
+
 message(STATUS "Build:  cmake -B cmake-build-debug && cmake --build cmake-build-debug")
 message(STATUS "Run:    sudo ./cmake-build-debug/veil connect <profile>")
 message(STATUS "App:    ./cmake-build-debug/veil  (opens veil.app)")

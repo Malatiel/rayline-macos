@@ -16,32 +16,35 @@
 
 namespace wireguard {
 
-// ---- Resolve endpoint "host:port" ----
-bool resolve_endpoint(const std::string& endpoint, struct sockaddr_in& addr) {
-    auto colon = endpoint.rfind(':');
-    if (colon == std::string::npos) return false;
+// ---- Resolve endpoint "host:port" or "[ipv6]:port" ----
+bool resolve_endpoint(const std::string& endpoint, struct sockaddr_storage& addr, socklen_t& addr_len) {
+    std::string host, port_str;
 
-    std::string host = endpoint.substr(0, colon);
-    std::string port_str = endpoint.substr(colon + 1);
-    int port = std::stoi(port_str);
-
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons((uint16_t)port);
-
-    // Try direct IP first
-    if (inet_aton(host.c_str(), &addr.sin_addr) == 1) {
-        return true;
+    // Parse bracketed IPv6: [::1]:51820
+    if (!endpoint.empty() && endpoint[0] == '[') {
+        auto bracket = endpoint.find(']');
+        if (bracket == std::string::npos) return false;
+        host = endpoint.substr(1, bracket - 1);
+        if (bracket + 1 >= endpoint.size() || endpoint[bracket + 1] != ':') return false;
+        port_str = endpoint.substr(bracket + 2);
+    } else {
+        auto colon = endpoint.rfind(':');
+        if (colon == std::string::npos) return false;
+        host = endpoint.substr(0, colon);
+        port_str = endpoint.substr(colon + 1);
     }
 
-    // DNS lookup
+    memset(&addr, 0, sizeof(addr));
+
+    // DNS lookup supporting both IPv4 and IPv6
     struct addrinfo hints{}, *res = nullptr;
-    hints.ai_family   = AF_INET;
+    hints.ai_family   = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
     int rc = getaddrinfo(host.c_str(), port_str.c_str(), &hints, &res);
     if (rc != 0 || !res) return false;
 
-    addr = *((struct sockaddr_in*)res->ai_addr);
+    memcpy(&addr, res->ai_addr, res->ai_addrlen);
+    addr_len = res->ai_addrlen;
     freeaddrinfo(res);
     return true;
 }
@@ -96,19 +99,19 @@ void WireGuardPeer::init_static_context() {
 void WireGuardPeer::create_socket() {
     if (udp_fd_ >= 0) return;
 
-    // Resolve endpoint
-    if (!resolve_endpoint(peer_config_.endpoint, peer_addr_)) {
+    // Resolve endpoint (IPv4 or IPv6)
+    if (!resolve_endpoint(peer_config_.endpoint, peer_addr_, peer_addr_len_)) {
         throw std::runtime_error("Failed to resolve endpoint: " + peer_config_.endpoint);
     }
 
-    udp_fd_ = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int af = peer_addr_.ss_family;
+    udp_fd_ = ::socket(af, SOCK_DGRAM, IPPROTO_UDP);
     if (udp_fd_ < 0) {
         throw std::runtime_error(std::string("socket(UDP) failed: ") + strerror(errno));
     }
 
-    // Set non-blocking for recv (we'll use select with timeout)
-    // Keep blocking for sends
     std::cout << "[WG] Created UDP socket fd=" << udp_fd_
+              << " (" << (af == AF_INET6 ? "IPv6" : "IPv4") << ")"
               << " -> " << peer_config_.endpoint << std::endl;
 }
 
@@ -139,7 +142,7 @@ void WireGuardPeer::send_junk_packets() {
             memcpy(junk.data(), &fake_type, 4);
         }
         sendto(udp_fd_, junk.data(), jsize, 0,
-               (struct sockaddr*)&peer_addr_, sizeof(peer_addr_));
+               (struct sockaddr*)&peer_addr_, peer_addr_len_);
     }
 }
 
@@ -388,7 +391,7 @@ bool WireGuardPeer::do_handshake(int timeout_ms) {
     }
 
     ssize_t sent = sendto(udp_fd_, send_buf.data(), send_buf.size(), 0,
-                          (struct sockaddr*)&peer_addr_, sizeof(peer_addr_));
+                          (struct sockaddr*)&peer_addr_, peer_addr_len_);
     if (sent < 0) {
         throw std::runtime_error(std::string("sendto handshake init failed: ") + strerror(errno));
     }
@@ -420,7 +423,7 @@ bool WireGuardPeer::do_handshake(int timeout_ms) {
         if (ready == 0) break;  // timeout
 
         uint8_t buf[4096];
-        struct sockaddr_in from{};
+        struct sockaddr_storage from{};
         socklen_t fromlen = sizeof(from);
         ssize_t n = recvfrom(udp_fd_, buf, sizeof(buf), 0,
                              (struct sockaddr*)&from, &fromlen);
@@ -501,7 +504,7 @@ bool WireGuardPeer::send_packet(const uint8_t* data, size_t len) {
     memcpy(pkt.data() + sizeof(MsgData), ct.data(), ct.size());
 
     ssize_t sent = sendto(udp_fd_, pkt.data(), pkt.size(), 0,
-                          (struct sockaddr*)&peer_addr_, sizeof(peer_addr_));
+                          (struct sockaddr*)&peer_addr_, peer_addr_len_);
     if (sent < 0) {
         std::cerr << "[WG] sendto data failed: " << strerror(errno) << std::endl;
         return false;
@@ -513,7 +516,7 @@ std::vector<uint8_t> WireGuardPeer::recv_packet() {
     if (udp_fd_ < 0) return {};
 
     uint8_t buf[65536 + 32];
-    struct sockaddr_in from{};
+    struct sockaddr_storage from{};
     socklen_t fromlen = sizeof(from);
 
     ssize_t n = recvfrom(udp_fd_, buf, sizeof(buf), MSG_DONTWAIT,
@@ -615,7 +618,7 @@ bool WireGuardPeer::send_keepalive() {
     memcpy(pkt.data() + sizeof(MsgData), ct.data(), ct.size());
 
     sendto(udp_fd_, pkt.data(), pkt.size(), 0,
-           (struct sockaddr*)&peer_addr_, sizeof(peer_addr_));
+           (struct sockaddr*)&peer_addr_, peer_addr_len_);
     return true;
 }
 

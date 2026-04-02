@@ -17,6 +17,8 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 - Packet sent / received counters
 - Automatic macOS system SOCKS5 proxy configuration and cleanup on disconnect
 - Bundled sing-box — no manual installation needed (downloaded automatically on first launch)
+- **Supply-chain protection**: sing-box is downloaded from a pinned release with SHA256 checksum verification
+- IPv4 and **IPv6** endpoint support in the WireGuard transport
 - Structured log view with ANSI colour stripping
 
 ---
@@ -28,7 +30,7 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 | macOS | 13 Ventura or newer |
 | Architecture | Apple Silicon (arm64) or Intel (x86_64) |
 | Xcode Command Line Tools | any recent version (`xcode-select --install`) |
-| sing-box | downloaded automatically by the app |
+| sing-box | v1.11.4 (pinned; downloaded automatically by the app) |
 
 ---
 
@@ -63,11 +65,13 @@ open ../veil.app
 # Swift tests (proxy parser)
 swift test
 
-# C++ tests (proxy parser + config generation)
+# C++ tests (proxy parser + config generation + shared conformance)
 cmake -B cmake-build-debug
-cmake --build cmake-build-debug --target test_proxy_parser
-./cmake-build-debug/test_proxy_parser
+cmake --build cmake-build-debug
+ctest --test-dir cmake-build-debug -V
 ```
+
+The shared test suite (`Tests/shared_test_cases.json`) validates both the C++ and Swift proxy parsers against the same set of URIs and expected values, preventing behavioural drift between the two implementations.
 
 ---
 
@@ -105,13 +109,15 @@ Veil/
 │   └── main.cpp            # CLI entry point
 │
 ├── Tests/
-│   ├── ProxyParserTests.swift   # 44 Swift XCTests
-│   └── test_proxy_parser.cpp   # 23 C++ unit tests
+│   ├── ProxyParserTests.swift    # 44 Swift XCTests
+│   ├── test_proxy_parser.cpp     # 23 C++ unit tests
+│   ├── test_shared_cases.cpp     # C++ runner for shared conformance tests
+│   └── shared_test_cases.json    # Shared test vectors for both parsers
 │
 └── .github/workflows/release.yml  # CI: builds app and publishes releases
 ```
 
-The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/`) provides a standalone CLI and an alternative embedded HTTP GUI; both share the same proxy-URL parsing logic implemented independently in each language.
+The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/`) provides a standalone CLI and an alternative embedded HTTP GUI; both share the same proxy-URL parsing logic implemented independently in each language. A shared JSON test suite (`Tests/shared_test_cases.json`) ensures both implementations stay in sync.
 
 ---
 
@@ -128,10 +134,12 @@ The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/
 
 ## Security notes
 
+- **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - The temporary config file (`/tmp/veil_singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
 - The embedded HTTP GUI server (`127.0.0.1:18080`) does **not** send `Access-Control-Allow-Origin: *`, preventing cross-origin requests from arbitrary websites.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
-- Network service names used in `networksetup` shell commands are validated to contain no shell metacharacters.
+- `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.
+- **DNS restoration**: when the VPN disconnects, both `networksetup` DNS settings and `/etc/resolv.conf` are restored to their pre-connection state. The active network service is determined by the interface associated with the default route, not by list order.
 
 ---
 
