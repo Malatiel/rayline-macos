@@ -36,6 +36,12 @@ final class VPNManager: ObservableObject {
         didSet { UserDefaults.standard.set(killSwitchEnabled, forKey: "killSwitchEnabled") }
     }
 
+    @Published var autoConnectEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnect") }
+    }
+
+    @Published var lastPingUpdate: Date?
+
     static let socksPort: Int = 10808
 
     // Directory where we install sing-box
@@ -51,8 +57,11 @@ final class VPNManager: ObservableObject {
 
     // MARK: - Init
 
+    private var didAutoConnect = false
+
     init() {
         killSwitchEnabled = UserDefaults.standard.bool(forKey: "killSwitchEnabled")
+        autoConnectEnabled = UserDefaults.standard.bool(forKey: "autoConnect")
         hasSingBox = findSingBox() != nil
         if !hasSingBox {
             let L = LanguageManager.shared
@@ -65,13 +74,29 @@ final class VPNManager: ObservableObject {
 
     func connect(urlString: String) {
         Task {
-            // Auto-download if needed
             if !hasSingBox {
                 await downloadSingBox()
                 guard hasSingBox else { return }
             }
             await doConnect(urlString: urlString)
         }
+    }
+
+    func connect(config cfg: ProxyConfig) {
+        Task {
+            if !hasSingBox {
+                await downloadSingBox()
+                guard hasSingBox else { return }
+            }
+            await doConnectWith(config: cfg)
+        }
+    }
+
+    func autoConnectOnLaunchIfNeeded(activeProfile: ProxyConfig?) {
+        guard !didAutoConnect else { return }
+        didAutoConnect = true
+        guard autoConnectEnabled, let profile = activeProfile else { return }
+        connect(config: profile)
     }
 
     private func doConnect(urlString: String) async {
@@ -91,6 +116,12 @@ final class VPNManager: ObservableObject {
             setState(.error(error.localizedDescription))
             return
         }
+        await doConnectWith(config: cfg)
+    }
+
+    private func doConnectWith(config cfg: ProxyConfig) async {
+        let L = LanguageManager.shared
+        state = .connecting
         config = cfg
 
         let json = cfg.toSingBoxConfig()
@@ -179,6 +210,7 @@ final class VPNManager: ObservableObject {
 
         if killSwitchEnabled {
             // Keep system proxy active → traffic fails → no leaks
+            try? FileManager.default.removeItem(atPath: self.configPath)
             addLog(L.t(
                 "⚠️ Kill Switch: соединение оборвалось — трафик заблокирован",
                 "⚠️ Kill Switch: connection lost — traffic blocked"
@@ -295,7 +327,7 @@ final class VPNManager: ObservableObject {
 
     private func startPing(host: String, port: Int) {
         stopPing()
-        measureRTT(host: host, port: port)          // first probe immediately
+        measureRTT(host: host, port: port)
         pingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.measureRTT(host: host, port: port) }
         }
@@ -304,6 +336,11 @@ final class VPNManager: ObservableObject {
     private func stopPing() {
         pingTimer?.invalidate(); pingTimer = nil
         pingMs = nil; packetsSent = 0; packetsRecv = 0
+    }
+
+    func refreshPing() {
+        guard state.isConnected, let cfg = config else { return }
+        measureRTT(host: cfg.server, port: cfg.port)
     }
 
     private func measureRTT(host: String, port: Int) {
@@ -317,7 +354,11 @@ final class VPNManager: ObservableObject {
             switch state {
             case .ready:
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
-                DispatchQueue.main.async { self?.pingMs = ms; self?.packetsRecv += 1 }
+                DispatchQueue.main.async {
+                    self?.pingMs = ms
+                    self?.packetsRecv += 1
+                    self?.lastPingUpdate = Date()
+                }
                 conn.cancel()
             case .failed:
                 conn.cancel()

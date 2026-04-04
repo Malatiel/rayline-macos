@@ -456,4 +456,118 @@ final class ProxyParserTests: XCTestCase {
         let json = #"{"desc": "say \"hi\""}"#
         XCTAssertEqual(ProxyParser.jsonField(json, "desc"), #"say "hi""#)
     }
+
+    // MARK: - Codable Round-trip
+
+    func testCodableRoundTripVless() throws {
+        let uri = "vless://a3c7e1f2-1234-5678-abcd-ef0123456789@example.com:443?security=reality&sni=dl.google.com&pbk=mypubkey&sid=ab12&fp=chrome&type=ws&path=%2Fws&host=cdn.io#MyVless"
+        let original = try ProxyParser.parse(uri)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ProxyConfig.self, from: data)
+        XCTAssertEqual(original, decoded)
+    }
+
+    func testCodableRoundTripVmess() throws {
+        let json = #"{"v":"2","ps":"VM","add":"vm.io","port":"443","id":"11112222-3333-4444-5555-666677778888","aid":"0","net":"ws","path":"/v","host":"h.io","tls":"tls","sni":"s.io","fp":"chrome"}"#
+        let b64 = Data(json.utf8).base64EncodedString()
+        let original = try ProxyParser.parse("vmess://\(b64)")
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ProxyConfig.self, from: data)
+        XCTAssertEqual(original, decoded)
+    }
+
+    func testCodableRoundTripShadowsocks() throws {
+        let userinfo = Data("aes-256-gcm:mypass".utf8).base64EncodedString()
+        let original = try ProxyParser.parse("ss://\(userinfo)@ss.io:8388#MySSNode")
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ProxyConfig.self, from: data)
+        XCTAssertEqual(original, decoded)
+    }
+
+    func testCodableRoundTripTrojan() throws {
+        let original = try ProxyParser.parse("trojan://pw123@trojan.io:443?security=tls&sni=trojan.io&type=ws&path=%2Ftj&host=cdn.io&fp=firefox#TJ")
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ProxyConfig.self, from: data)
+        XCTAssertEqual(original, decoded)
+    }
+
+    func testCodablePreservesId() throws {
+        var cfg = try ProxyParser.parse("vless://a1b2c3d4-0000-1111-2222-333344445555@v.io:443?security=tls")
+        let fixedId = UUID()
+        cfg.id = fixedId
+        let data = try JSONEncoder().encode(cfg)
+        let decoded = try JSONDecoder().decode(ProxyConfig.self, from: data)
+        XCTAssertEqual(decoded.id, fixedId)
+    }
+
+    // MARK: - toURL Round-trip
+
+    private func assertRoundTrip(_ uri: String, file: StaticString = #file, line: UInt = #line) throws {
+        let original = try ProxyParser.parse(uri)
+        let exported = original.toURL()
+        let reparsed = try ProxyParser.parse(exported)
+        // Compare all structurally significant fields (id and name encoding may differ)
+        XCTAssertEqual(original.proto, reparsed.proto, "proto mismatch", file: file, line: line)
+        XCTAssertEqual(original.uuid, reparsed.uuid, "uuid mismatch", file: file, line: line)
+        XCTAssertEqual(original.server, reparsed.server, "server mismatch", file: file, line: line)
+        XCTAssertEqual(original.port, reparsed.port, "port mismatch", file: file, line: line)
+        XCTAssertEqual(original.security, reparsed.security, "security mismatch", file: file, line: line)
+        XCTAssertEqual(original.network, reparsed.network, "network mismatch", file: file, line: line)
+        XCTAssertEqual(original.sni, reparsed.sni, "sni mismatch", file: file, line: line)
+        XCTAssertEqual(original.host, reparsed.host, "host mismatch", file: file, line: line)
+        XCTAssertEqual(original.path, reparsed.path, "path mismatch", file: file, line: line)
+        XCTAssertEqual(original.fp, reparsed.fp, "fp mismatch", file: file, line: line)
+        XCTAssertEqual(original.pbk, reparsed.pbk, "pbk mismatch", file: file, line: line)
+        XCTAssertEqual(original.shortId, reparsed.shortId, "shortId mismatch", file: file, line: line)
+        XCTAssertEqual(original.method, reparsed.method, "method mismatch", file: file, line: line)
+        XCTAssertEqual(original.allowInsecure, reparsed.allowInsecure, "allowInsecure mismatch", file: file, line: line)
+    }
+
+    func testToURLRoundTripVlessTLS() throws {
+        try assertRoundTrip("vless://a3c7e1f2-1234-5678-abcd-ef0123456789@example.com:443?security=tls&sni=example.com&type=tcp#MyServer")
+    }
+
+    func testToURLRoundTripVlessReality() throws {
+        try assertRoundTrip("vless://b1c2d3e4-0000-1111-2222-333344445555@reality.io:443?security=reality&sni=dl.google.com&pbk=abc123pubkey&sid=abcdef12&fp=chrome&type=tcp#Reality")
+    }
+
+    func testToURLRoundTripVlessWS() throws {
+        try assertRoundTrip("vless://c1d2e3f4-aaaa-bbbb-cccc-ddddeeee0000@wsserver.io:80?security=none&type=ws&path=%2Fws%2Fpath&host=cdn.example.com#WSNode")
+    }
+
+    func testToURLRoundTripVmess() throws {
+        let json = #"{"v":"2","ps":"Node","add":"vm.io","port":"443","id":"11112222-3333-4444-5555-666677778888","aid":"0","net":"tcp","tls":"tls","sni":"vm.io","fp":"chrome"}"#
+        let b64 = Data(json.utf8).base64EncodedString()
+        try assertRoundTrip("vmess://\(b64)")
+    }
+
+    func testToURLRoundTripShadowsocks() throws {
+        let userinfo = Data("aes-256-gcm:secretpassword".utf8).base64EncodedString()
+        try assertRoundTrip("ss://\(userinfo)@ss.server.com:8388#MySS")
+    }
+
+    func testToURLRoundTripTrojan() throws {
+        try assertRoundTrip("trojan://trojanpassword@trojan.server.com:443?security=tls&sni=trojan.server.com&type=tcp#TrojanNode")
+    }
+
+    func testToURLRoundTripTrojanWS() throws {
+        try assertRoundTrip("trojan://wspass@trojanws.io:443?security=tls&type=ws&path=%2Ftrojan&host=cdn.trojanws.io&fp=firefox#TrojanWS")
+    }
+
+    func testToURLVlessPercentEncodesName() throws {
+        let uri = "vless://a1b2c3d4-0000-1111-2222-333344445555@v.io:443?security=tls#%D0%A1%D0%B5%D1%80%D0%B2%D0%B5%D1%80"
+        let cfg = try ProxyParser.parse(uri)
+        let url = cfg.toURL()
+        // Name "Сервер" must be percent-encoded in output
+        XCTAssertTrue(url.contains("%D0%A1%D0%B5%D1%80%D0%B2%D0%B5%D1%80") || url.contains("Сервер"),
+                       "Name should be present in URL")
+        // Round-trip must preserve the name
+        let reparsed = try ProxyParser.parse(url)
+        XCTAssertEqual(reparsed.name, "Сервер")
+    }
+
+    func testToURLShadowsocksPasswordWithColon() throws {
+        let userinfo = Data("chacha20-ietf-poly1305:pass:word".utf8).base64EncodedString()
+        try assertRoundTrip("ss://\(userinfo)@colonpass.io:8389#Colon")
+    }
 }

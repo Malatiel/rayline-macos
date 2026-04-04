@@ -2,9 +2,10 @@ import Foundation
 
 // MARK: - Models
 
-enum ProxyProtocol: Equatable { case vless, vmess, shadowsocks, trojan }
+enum ProxyProtocol: String, Equatable, Codable { case vless, vmess, shadowsocks, trojan }
 
-struct ProxyConfig {
+struct ProxyConfig: Codable, Identifiable, Equatable {
+    var id:            UUID   = UUID()
     var proto:         ProxyProtocol
     var uuid:          String = ""
     var server:        String = ""
@@ -350,5 +351,91 @@ extension ProxyConfig {
             }
         }
         return out
+    }
+}
+
+// MARK: - URL export
+
+extension ProxyConfig {
+
+    func toURL() -> String {
+        switch proto {
+        case .vless:   return vlessURL()
+        case .vmess:   return vmessURL()
+        case .shadowsocks: return ssURL()
+        case .trojan:  return trojanURL()
+        }
+    }
+
+    // MARK: Private
+
+    private func vlessURL() -> String {
+        var params: [(String, String)] = []
+        if !encryption.isEmpty && encryption != "none" { params.append(("encryption", encryption)) }
+        params.append(("security", security))
+        params.append(("type", network))
+        if !sni.isEmpty  { params.append(("sni", sni)) }
+        if !host.isEmpty { params.append(("host", host)) }
+        if path != "/" && !path.isEmpty { params.append(("path", path)) }
+        if !fp.isEmpty   { params.append(("fp", fp)) }
+        if !pbk.isEmpty  { params.append(("pbk", pbk)) }
+        if !shortId.isEmpty { params.append(("sid", shortId)) }
+        if allowInsecure { params.append(("allowInsecure", "1")) }
+        let qs = params.map { "\($0.0)=\(urlEncode($0.1))" }.joined(separator: "&")
+        return "vless://\(urlEncode(uuid))@\(serverHostPort())?\(qs)#\(urlEncode(name))"
+    }
+
+    private func vmessURL() -> String {
+        var j = "{"
+        j += "\"v\":\"2\""
+        j += ",\"ps\":\"\(jsonEsc(name))\""
+        j += ",\"add\":\"\(jsonEsc(server))\""
+        j += ",\"port\":\"\(port)\""
+        j += ",\"id\":\"\(jsonEsc(uuid))\""
+        j += ",\"aid\":\"0\""
+        j += ",\"net\":\"\(jsonEsc(network))\""
+        j += ",\"type\":\"none\""
+        j += ",\"host\":\"\(jsonEsc(host))\""
+        j += ",\"path\":\"\(jsonEsc(path))\""
+        j += ",\"tls\":\"\(jsonEsc(security))\""
+        j += ",\"sni\":\"\(jsonEsc(sni))\""
+        j += ",\"fp\":\"\(jsonEsc(fp))\""
+        j += "}"
+        let b64 = Data(j.utf8).base64EncodedString()
+        return "vmess://\(b64)"
+    }
+
+    private func ssURL() -> String {
+        let userinfo = "\(method):\(uuid)"
+        let b64 = Data(userinfo.utf8).base64EncodedString()
+        return "ss://\(b64)@\(serverHostPort())#\(urlEncode(name))"
+    }
+
+    private func trojanURL() -> String {
+        var params: [(String, String)] = []
+        params.append(("security", security.isEmpty ? "tls" : security))
+        if !sni.isEmpty  { params.append(("sni", sni)) }
+        params.append(("type", network))
+        if path != "/" && !path.isEmpty { params.append(("path", path)) }
+        if !host.isEmpty { params.append(("host", host)) }
+        if !fp.isEmpty   { params.append(("fp", fp)) }
+        if allowInsecure { params.append(("allowInsecure", "1")) }
+        let qs = params.map { "\($0.0)=\(urlEncode($0.1))" }.joined(separator: "&")
+        return "trojan://\(urlEncode(uuid))@\(serverHostPort())?\(qs)#\(urlEncode(name))"
+    }
+
+    private func serverHostPort() -> String {
+        if server.contains(":") { return "[\(server)]:\(port)" } // IPv6
+        return "\(server):\(port)"
+    }
+
+    private func urlEncode(_ s: String) -> String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: ":#@!$&'()*+,;=[]/?")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+    }
+
+    private func jsonEsc(_ s: String) -> String {
+        return esc(s) // reuse the existing esc() method
     }
 }

@@ -74,6 +74,9 @@ swiftc \
     -framework Foundation \
     ProxyParser.swift \
     LanguageManager.swift \
+    ThemeManager.swift \
+    ToastManager.swift \
+    ProfileManager.swift \
     VPNManager.swift \
     ContentView.swift \
     VeilApp.swift \
