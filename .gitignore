@@ -7,9 +7,12 @@ build/
 *.dylib
 
 # ── Generated app bundle ──────────────────────────────────────────────────────
-# Built by macapp/build.sh — not source, contains downloaded sing-box binary
+# Built by App/build.sh / CI — not source, contains downloaded sing-box binary
 veil.app/
+dist/
+release/
 veil-macos.zip
+veil-macos-*.zip
 
 # ── Claude Code internal settings ─────────────────────────────────────────────
 .claude/

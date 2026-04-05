@@ -41,12 +41,14 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 
 ## Quick start (pre-built)
 
-1. Download `veil-macos.zip` from the [latest release](../../releases/latest).
+1. Download the archive for your Mac from the [latest release](../../releases/latest):
+   - `veil-macos-arm64.zip` for Apple Silicon
+   - `veil-macos-x86_64.zip` for Intel
 2. Unzip and drag `veil.app` to `/Applications`.
 3. Open the app — on first launch sing-box (~15 MB) is downloaded automatically.
 4. Paste a proxy URL and click **Connect**.
 
-> **Gatekeeper prompt:** right-click the app → Open → Open to bypass the "unidentified developer" warning.
+> **Gatekeeper prompt:** if you use an unsigned local build, macOS may show an "unidentified developer" warning. Signed and notarized release builds should open normally.
 
 ---
 
@@ -148,7 +150,7 @@ The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/
 - The temporary config file (`/tmp/veil_singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
 - The embedded HTTP GUI server (`127.0.0.1:18080`) does **not** send `Access-Control-Allow-Origin: *`, preventing cross-origin requests from arbitrary websites.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
-- `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.
+- In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved there, so network service names with special characters cannot cause command injection.
 - Clipboard operations (copy link, copy log) are triggered only by explicit user action.
 
 ---

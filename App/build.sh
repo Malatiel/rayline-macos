@@ -2,22 +2,32 @@
 set -e
 cd "$(dirname "$0")"
 
-APP="../veil.app"
+APP="${APP_OUTPUT:-../veil.app}"
 MACOS="$APP/Contents/MacOS"
 RES="$APP/Contents/Resources"
+BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-}"
 
 echo "🔨 Сборка veil.app..."
+rm -rf "$APP"
+rm -rf "$APP/Contents/_CodeSignature"
+if command -v xattr >/dev/null 2>&1; then
+    xattr -dr com.apple.provenance "$APP" 2>/dev/null || true
+fi
 mkdir -p "$MACOS" "$RES"
 cp Info.plist "$APP/Contents/"
 
 # ── 1. Архитектура ────────────────────────────────────────────────────────────
-ARCH=$(uname -m)
-if [ "$ARCH" = "arm64" ]; then
+if [ "$BUILD_ARCH" = "arm64" ]; then
     TARGET="arm64-apple-macosx13.0"
     SB_ARCH="darwin-arm64"
-else
+elif [ "$BUILD_ARCH" = "x86_64" ]; then
     TARGET="x86_64-apple-macosx13.0"
     SB_ARCH="darwin-amd64"
+else
+    echo "❌ Unsupported BUILD_ARCH: $BUILD_ARCH"
+    exit 1
 fi
 
 # ── 2. Скачать sing-box (если ещё нет внутри .app) ───────────────────────────
@@ -82,8 +92,26 @@ swiftc \
     VeilApp.swift \
     -o "$MACOS/veil"
 
+sign_path() {
+    local path="$1"
+    local args=(--force --sign "$SIGN_IDENTITY")
+    if [ "$SIGN_IDENTITY" != "-" ]; then
+        args+=(--timestamp --options runtime)
+        if [ -n "$ENTITLEMENTS_PATH" ] && [ -f "$ENTITLEMENTS_PATH" ]; then
+            args+=(--entitlements "$ENTITLEMENTS_PATH")
+        fi
+    fi
+    codesign "${args[@]}" "$path"
+}
+
+echo "🔏 Подпись bundle..."
+sign_path "$MACOS/sing-box"
+sign_path "$MACOS/veil"
+sign_path "$APP"
+codesign --verify --deep --strict --verbose=2 "$APP"
+
 echo "✅ Готово: $APP"
-echo "   $(du -sh "$APP" | cut -f1)  (включая sing-box)"
+echo "   $(du -sh "$APP" | cut -f1)  (arch=$BUILD_ARCH, включая sing-box)"
 
 # ── 4. Запуск (не в CI) ───────────────────────────────────────────────────────
 if [ -z "$CI" ]; then

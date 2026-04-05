@@ -7,8 +7,8 @@ on:
   workflow_dispatch:  # Ручной запуск из GitHub UI
 
 jobs:
-  build:
-    name: Build macOS App
+  test:
+    name: Tests
     runs-on: macos-15   # Apple Silicon (arm64)
 
     steps:
@@ -21,42 +21,120 @@ jobs:
       - name: C++ tests
         run: |
           cmake -B cmake-build-ci -DCMAKE_BUILD_TYPE=Release
-          cmake --build cmake-build-ci --target test_vless_parser
-          ./cmake-build-ci/test_vless_parser
+          cmake --build cmake-build-ci
+          ctest --test-dir cmake-build-ci -V
+
+  build:
+    name: Build macOS App (${{ matrix.arch }})
+    runs-on: macos-15
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x86_64]
+
+    env:
+      APPLE_CERT_BASE64: ${{ secrets.APPLE_CERT_BASE64 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare paths
+        run: |
+          mkdir -p dist
+          echo "APP_PATH=$GITHUB_WORKSPACE/dist/Veil-${{ matrix.arch }}.app" >> "$GITHUB_ENV"
+          echo "ZIP_PATH=$GITHUB_WORKSPACE/dist/veil-macos-${{ matrix.arch }}.zip" >> "$GITHUB_ENV"
+
+      - name: Import Developer ID certificate
+        if: ${{ env.APPLE_CERT_BASE64 != '' && env.APPLE_CERT_PASSWORD != '' && env.APPLE_SIGNING_IDENTITY != '' }}
+        run: |
+          CERT_BASE64_FILE="$RUNNER_TEMP/apple-cert.base64"
+          CERT_P12_FILE="$RUNNER_TEMP/apple-cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          printf '%s' "$APPLE_CERT_BASE64" > "$CERT_BASE64_FILE"
+          base64 -D -i "$CERT_BASE64_FILE" -o "$CERT_P12_FILE"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_P12_FILE" -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
       - name: Build veil.app
         run: |
-          cd macapp
+          cd App
+          BUILD_ARCH=${{ matrix.arch }} \
+          APP_OUTPUT="$APP_PATH" \
+          SIGN_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" \
           bash build.sh
 
       - name: Verify binary
         run: |
-          ls -lh veil.app/Contents/MacOS/veil
-          file veil.app/Contents/MacOS/veil
+          ls -lh "$APP_PATH/Contents/MacOS/veil"
+          file "$APP_PATH/Contents/MacOS/veil"
+          lipo -archs "$APP_PATH/Contents/MacOS/veil"
 
       - name: Create ZIP
         run: |
-          zip -r veil-macos.zip veil.app
-          echo "Archive size: $(du -sh veil-macos.zip | cut -f1)"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+          echo "Archive size: $(du -sh "$ZIP_PATH" | cut -f1)"
+
+      - name: Notarize and staple
+        if: ${{ env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != '' && env.APPLE_SIGNING_IDENTITY != '' }}
+        run: |
+          xcrun notarytool store-credentials "veil-notary" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID"
+          xcrun notarytool submit "$ZIP_PATH" --keychain-profile "veil-notary" --wait
+          xcrun stapler staple "$APP_PATH"
+          rm -f "$ZIP_PATH"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
 
       - name: Upload artifact (для каждого коммита)
         uses: actions/upload-artifact@v4
         with:
-          name: veil-macos
-          path: veil-macos.zip
+          name: veil-macos-${{ matrix.arch }}
+          path: ${{ env.ZIP_PATH }}
           retention-days: 30
 
-      - name: Create GitHub Release (только для тегов)
-        if: startsWith(github.ref, 'refs/tags/')
+  release:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: macos-15
+    needs: build
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find dist -name '*.zip' -exec mv {} release/ \;
+          ls -lh release
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: veil-macos.zip
+          files: release/*.zip
           generate_release_notes: true
           body: |
             ## Veil для macOS
 
             ### Установка
-            1. Скачай `veil-macos.zip`
+            1. Скачай архив под свою архитектуру:
+               - `veil-macos-arm64.zip` для Apple Silicon
+               - `veil-macos-x86_64.zip` для Intel
             2. Распакуй → перетащи `veil.app` в `/Applications`
             3. Запусти — при первом запуске автоматически скачается sing-box (~15 МБ)
 
