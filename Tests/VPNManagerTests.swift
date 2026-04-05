@@ -98,6 +98,11 @@ final class VPNManagerTests: XCTestCase {
         XCTAssertTrue(VPNManager.State.connecting.isConnecting)
         XCTAssertFalse(VPNManager.State.connecting.isConnected)
 
+        XCTAssertTrue(VPNManager.State.disconnecting.isDisconnecting)
+        XCTAssertFalse(VPNManager.State.disconnecting.isConnecting)
+        XCTAssertFalse(VPNManager.State.disconnecting.isConnected)
+        XCTAssertFalse(VPNManager.State.disconnecting.isError)
+
         XCTAssertTrue(VPNManager.State.error("fail").isError)
         XCTAssertFalse(VPNManager.State.error("fail").isConnected)
 

@@ -336,7 +336,7 @@ final class ProxyParserTests: XCTestCase {
         for uri in configs {
             let cfg = try ProxyParser.parse(uri)
             let json = cfg.toSingBoxConfig()
-            XCTAssertTrue(json.contains("10808"), "All configs must have socks5 inbound on port 10808 (uri: \(uri))")
+            XCTAssertTrue(json.contains("\(VPNManager.socksPort)"), "All configs must have socks5 inbound on port \(VPNManager.socksPort) (uri: \(uri))")
             XCTAssertTrue(json.contains("\"socks\""), "All configs must have socks inbound type (uri: \(uri))")
         }
     }

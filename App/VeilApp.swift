@@ -47,6 +47,7 @@ private struct StatusBarLabel: View {
         switch state {
         case .disconnected: return "shield"
         case .connecting:   return "shield.lefthalf.filled"
+        case .disconnecting: return "shield.lefthalf.filled"
         case .connected:    return "shield.fill"
         case .error:        return "shield.slash"
         }
@@ -56,6 +57,7 @@ private struct StatusBarLabel: View {
         switch state {
         case .disconnected: return .primary
         case .connecting:   return .orange
+        case .disconnecting: return .orange
         case .connected:    return menuBarConnectedAccent
         case .error:        return .red
         }

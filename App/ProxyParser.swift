@@ -40,12 +40,15 @@ struct ProxyConfig: Codable, Identifiable, Equatable {
 enum ParseError: LocalizedError {
     case unknownProtocol, missingAt, invalidPort, base64Failed, noServer
     var errorDescription: String? {
+        let L = LanguageManager.shared
         switch self {
-        case .unknownProtocol: return "Неизвестный протокол (vless/vmess/ss/trojan)"
-        case .missingAt:       return "Неверный формат: нет символа @"
-        case .invalidPort:     return "Неверный порт"
-        case .base64Failed:    return "Ошибка декодирования Base64"
-        case .noServer:        return "Не указан сервер"
+        case .unknownProtocol: return L.t("Неизвестный протокол (vless/vmess/ss/trojan)",
+                                          "Unknown protocol (vless/vmess/ss/trojan)")
+        case .missingAt:       return L.t("Неверный формат: нет символа @",
+                                          "Invalid format: missing @ symbol")
+        case .invalidPort:     return L.t("Неверный порт", "Invalid port")
+        case .base64Failed:    return L.t("Ошибка декодирования Base64", "Base64 decoding failed")
+        case .noServer:        return L.t("Не указан сервер", "No server specified")
         }
     }
 }
@@ -259,11 +262,11 @@ enum ProxyParser {
 
 extension ProxyConfig {
 
-    func toSingBoxConfig() -> String {
+    func toSingBoxConfig(socksPort: Int = VPNManager.socksPort) -> String {
         var j = "{\n"
         j += "  \"log\": {\"level\": \"info\"},\n"
         j += "  \"inbounds\": [{\n"
-        j += "    \"type\": \"socks\", \"listen\": \"127.0.0.1\", \"listen_port\": 10808,\n"
+        j += "    \"type\": \"socks\", \"listen\": \"127.0.0.1\", \"listen_port\": \(socksPort),\n"
         j += "    \"sniff\": true, \"sniff_override_destination\": true\n"
         j += "  }],\n"
         j += "  \"outbounds\": [{\n"

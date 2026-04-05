@@ -320,7 +320,7 @@ struct ContentView: View {
         HStack(spacing: 10) {
             PulsingDot(
                 color: stateColor,
-                isActive: vpn.state.isConnected || vpn.state.isConnecting
+                isActive: vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting
             )
 
             VStack(alignment: .leading, spacing: 2) {
@@ -423,8 +423,12 @@ struct ContentView: View {
             .help(lang.t("Переключить язык", "Switch language"))
 
             Button {
-                if vpn.state.isConnected { vpn.disconnect() }
-                NSApplication.shared.terminate(nil)
+                Task {
+                    if vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting {
+                        await vpn.disconnectAndWait()
+                    }
+                    NSApplication.shared.terminate(nil)
+                }
             } label: {
                 Image(systemName: "xmark.circle")
             }
@@ -510,7 +514,7 @@ struct ContentView: View {
                     HStack(spacing: 10) {
                         PulsingDot(
                             color: stateColor,
-                            isActive: vpn.state.isConnected || vpn.state.isConnecting
+                            isActive: vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting
                         )
                         Text(stateLabel(vpn.state))
                             .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -601,6 +605,9 @@ struct ContentView: View {
         case .connecting:
             topColor = Color.orange.opacity(0.12)
             bottomColor = Color.primary.opacity(0.035)
+        case .disconnecting:
+            topColor = Color.orange.opacity(0.08)
+            bottomColor = Color.primary.opacity(0.03)
         case .error:
             topColor = Color.red.opacity(0.08)
             bottomColor = Color.primary.opacity(0.035)
@@ -618,6 +625,8 @@ struct ContentView: View {
             return connectedAccent.opacity(0.35)
         case .connecting:
             return Color.orange.opacity(0.3)
+        case .disconnecting:
+            return Color.orange.opacity(0.22)
         case .error:
             return Color.red.opacity(0.24)
         case .disconnected:
@@ -856,6 +865,11 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.red.opacity(0.6))
+                .disabled(isActive && (vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting))
+                .help(isActive && (vpn.state.isConnected || vpn.state.isConnecting)
+                      ? lang.t("Отключитесь перед удалением активного профиля",
+                               "Disconnect before deleting the active profile")
+                      : "")
             }
             .padding(.top, 10)
         }
@@ -947,6 +961,9 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(draftConfig == nil || !parseOK)
+                .help(!parseOK && !trimmed.isEmpty
+                      ? lang.t("Сначала нажмите «Проверить»", "Press «Check» first")
+                      : "")
 
                 Button {
                     pasteFromClipboard()
@@ -1186,8 +1203,12 @@ struct ContentView: View {
                         subtitle: lang.t("Закрыть Veil", "Quit Veil")
                     ) {
                         Button(lang.t("Выйти", "Quit")) {
-                            if vpn.state.isConnected { vpn.disconnect() }
-                            NSApplication.shared.terminate(nil)
+                            Task {
+                                if vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting {
+                                    await vpn.disconnectAndWait()
+                                }
+                                NSApplication.shared.terminate(nil)
+                            }
                         }
                         .buttonStyle(.bordered)
                     }
@@ -1276,7 +1297,7 @@ struct ContentView: View {
             connectPressed = false
         }
 
-        if vpn.state.isConnected || vpn.state.isConnecting {
+        if vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting {
             vpn.disconnect()
         } else {
             connectVPN()
@@ -1302,7 +1323,7 @@ struct ContentView: View {
         switch newState {
         case .connected:
             toastManager.show(lang.t("Подключено", "Connected"), style: .success)
-        case .disconnected where previousVpnState.isConnected:
+        case .disconnected where previousVpnState.isConnected || previousVpnState == .disconnecting:
             toastManager.show(lang.t("Отключено", "Disconnected"), style: .info)
         case .error(let msg):
             toastManager.show(msg, style: .error)
@@ -1358,6 +1379,8 @@ struct ContentView: View {
             return lang.t("Отключено", "Disconnected")
         case .connecting:
             return lang.t("Подключение…", "Connecting…")
+        case .disconnecting:
+            return lang.t("Отключение…", "Disconnecting…")
         case .connected:
             return lang.t("Подключено", "Connected")
         case .error(let message):
@@ -1369,7 +1392,7 @@ struct ContentView: View {
         switch vpn.state {
         case .disconnected:
             return .secondary
-        case .connecting:
+        case .connecting, .disconnecting:
             return .orange
         case .connected:
             return connectedAccent
@@ -1382,6 +1405,9 @@ struct ContentView: View {
         if vpn.state.isConnected {
             return lang.t("Отключить", "Disconnect")
         }
+        if vpn.state == .disconnecting {
+            return lang.t("Отключение…", "Disconnecting…")
+        }
         if vpn.state.isConnecting {
             return lang.t("Остановить подключение", "Stop connecting")
         }
@@ -1389,7 +1415,7 @@ struct ContentView: View {
     }
 
     private var toggleButtonIcon: String {
-        if vpn.state.isConnected || vpn.state.isConnecting {
+        if vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting {
             return "power"
         }
         return "play.fill"
@@ -1399,13 +1425,16 @@ struct ContentView: View {
         if vpn.state.isConnected {
             return connectedAccent
         }
-        if vpn.state.isConnecting {
+        if vpn.state.isConnecting || vpn.state.isDisconnecting {
             return .orange
         }
         return .accentColor
     }
 
     private var isToggleDisabled: Bool {
+        if vpn.state == .disconnecting {
+            return true
+        }
         if vpn.state.isConnected || vpn.state.isConnecting {
             return false
         }
@@ -1423,6 +1452,11 @@ struct ContentView: View {
             return lang.t(
                 "Veil поднимает туннель и готовит системный прокси. Лог доступен отдельно, если понадобится диагностика.",
                 "Veil is bringing up the tunnel and preparing the system proxy. The log stays on its own tab for diagnostics."
+            )
+        case .disconnecting:
+            return lang.t(
+                "Veil снимает системный прокси и завершает очистку. Лучше дождаться этого состояния перед выходом.",
+                "Veil is clearing the system proxy and finishing cleanup. It's best to let this complete before quitting."
             )
         case .connected:
             return lang.t(
@@ -1444,6 +1478,9 @@ struct ContentView: View {
     private var pingMetricValue: String {
         if let ping = vpn.pingMs, vpn.state.isConnected {
             return "\(ping) \(lang.t("мс", "ms"))"
+        }
+        if vpn.state == .disconnecting {
+            return "—"
         }
         if vpn.state.isConnecting {
             return "…"

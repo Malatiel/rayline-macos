@@ -11,11 +11,13 @@ final class VPNManager: ObservableObject {
     enum State: Equatable {
         case disconnected
         case connecting
+        case disconnecting
         case connected
         case error(String)
 
         var isConnected: Bool  { if case .connected  = self { return true }; return false }
-        var isConnecting: Bool { if case .connecting = self { return true }; return false }
+        var isConnecting: Bool    { if case .connecting    = self { return true }; return false }
+        var isDisconnecting: Bool { if case .disconnecting = self { return true }; return false }
         var isError: Bool      { if case .error      = self { return true }; return false }
     }
 
@@ -42,18 +44,19 @@ final class VPNManager: ObservableObject {
 
     @Published var lastPingUpdate: Date?
 
-    static let socksPort: Int = 10808
+    nonisolated static let socksPort: Int = 10808
 
     // Directory where we install sing-box
     static let installDir: URL = FileManager.default
         .homeDirectoryForCurrentUser
         .appendingPathComponent(".veil")
 
-    private let configPath = "/tmp/veil_singbox.json"
+    private let configPath = VPNManager.installDir.appendingPathComponent("singbox.json").path
     private var process: Process?
     private var logTailHandle: FileHandle?
     private var logTailSource: DispatchSourceRead?
     private var pingTimer: Timer?
+    private var disconnectTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -126,6 +129,8 @@ final class VPNManager: ObservableObject {
 
         let json = cfg.toSingBoxConfig()
         do {
+            try FileManager.default.createDirectory(at: Self.installDir,
+                                                     withIntermediateDirectories: true)
             try json.write(toFile: configPath, atomically: true, encoding: .utf8)
             chmod(configPath, 0o600)
             addLog("Config → \(configPath)")
@@ -146,7 +151,7 @@ final class VPNManager: ObservableObject {
         proc.executableURL = URL(fileURLWithPath: sbPath)
         proc.arguments     = ["run", "-c", configPath]
 
-        let logFile = "/tmp/veil_singbox.log"
+        let logFile = Self.installDir.appendingPathComponent("singbox.log").path
         FileManager.default.createFile(atPath: logFile, contents: nil,
                                        attributes: [.posixPermissions: 0o600])
         if let fh = FileHandle(forWritingAtPath: logFile) {
@@ -164,7 +169,7 @@ final class VPNManager: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self,
                       self.process?.processIdentifier == terminatedProc.processIdentifier,
-                      self.state.isConnected else { return }
+                      self.state.isConnected || self.state.isConnecting else { return }
                 self.handleUnexpectedDisconnect()
             }
         }
@@ -173,12 +178,19 @@ final class VPNManager: ObservableObject {
         // Start tailing the log file so sing-box output appears in UI
         startLogTail(path: logFile)
 
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        let ready = await waitForSocksPort(timeout: 5.0, process: proc)
         guard proc.isRunning else {
-            setState(.error(L.t("sing-box завершился сразу (см. /tmp/veil_singbox.log)",
-                                "sing-box exited immediately (see /tmp/veil_singbox.log)")))
+            setState(.error(L.t("sing-box завершился сразу (см. лог)",
+                                "sing-box exited immediately (check log tab)")))
             stopLogTail()
             process = nil
+            return
+        }
+        guard ready else {
+            stopProcess()
+            stopLogTail()
+            setState(.error(L.t("sing-box не открыл порт \(Self.socksPort) за 5 сек",
+                                "sing-box did not open port \(Self.socksPort) within 5 sec")))
             return
         }
 
@@ -202,23 +214,35 @@ final class VPNManager: ObservableObject {
     // MARK: - Disconnect
 
     func disconnect() {
+        guard disconnectTask == nil else { return }
+        disconnectTask = Task { [weak self] in
+            await self?.performDisconnect()
+        }
+    }
+
+    func disconnectAndWait() async {
+        disconnect()
+        await disconnectTask?.value
+    }
+
+    private func performDisconnect() async {
         stopPing()
         stopLogTail()
         stopProcess()
+        state = .disconnecting
         let L = LanguageManager.shared
-        Task.detached(priority: .utility) {
-            let failures = setSystemProxy(false)
-            if !failures.isEmpty {
-                await MainActor.run {
-                    self.addLog(L.t("⚠ Не удалось снять системный proxy: \(failures.joined(separator: "; "))",
-                                    "⚠ Failed to clear system proxy: \(failures.joined(separator: "; "))"))
-                }
-            }
+        let failures = await Task.detached(priority: .utility) {
+            setSystemProxy(false)
+        }.value
+        if !failures.isEmpty {
+            addLog(L.t("⚠ Не удалось снять системный proxy: \(failures.joined(separator: "; "))",
+                       "⚠ Failed to clear system proxy: \(failures.joined(separator: "; "))"))
         }
         try? FileManager.default.removeItem(atPath: configPath)
         config = nil
         state  = .disconnected
         addLog(L.t("Отключено", "Disconnected"))
+        disconnectTask = nil
     }
 
     private func handleUnexpectedDisconnect() {
@@ -226,6 +250,7 @@ final class VPNManager: ObservableObject {
         stopPing()
         stopLogTail()
         process = nil
+        disconnectTask = nil
 
         if killSwitchEnabled {
             // Keep system proxy active → traffic fails → no leaks
@@ -242,9 +267,9 @@ final class VPNManager: ObservableObject {
             Task.detached(priority: .utility) {
                 let failures = setSystemProxy(false)
                 if !failures.isEmpty {
-                    await MainActor.run {
-                        self.addLog(L.t("⚠ Не удалось снять proxy: \(failures.joined(separator: "; "))",
-                                        "⚠ Failed to clear proxy: \(failures.joined(separator: "; "))"))
+                    await MainActor.run { [weak self] in
+                        self?.addLog(L.t("⚠ Не удалось снять proxy: \(failures.joined(separator: "; "))",
+                                         "⚠ Failed to clear proxy: \(failures.joined(separator: "; "))"))
                     }
                 }
             }
@@ -398,6 +423,36 @@ final class VPNManager: ObservableObject {
 
     // MARK: - Helpers
 
+    /// Poll TCP connect to the local SOCKS port until it accepts or timeout expires.
+    private func waitForSocksPort(timeout: Double, process proc: Process) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline && proc.isRunning {
+            let ok = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+                let conn = NWConnection(
+                    to: .hostPort(host: "127.0.0.1",
+                                  port: NWEndpoint.Port(integerLiteral: UInt16(Self.socksPort))),
+                    using: .tcp)
+                conn.stateUpdateHandler = { state in
+                    switch state {
+                    case .ready:
+                        conn.cancel()
+                        cont.resume(returning: true)
+                    case .failed, .cancelled:
+                        cont.resume(returning: false)
+                    default: break
+                    }
+                }
+                conn.start(queue: .global(qos: .utility))
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                    conn.cancel()
+                }
+            }
+            if ok { return true }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        return false
+    }
+
     private func stopProcess() {
         guard let proc = process, proc.isRunning else { process = nil; return }
         proc.terminate()
@@ -468,9 +523,12 @@ final class VPNManager: ObservableObject {
         }
     }
 
+    private static let logDateFormatter: DateFormatter = {
+        let df = DateFormatter(); df.dateFormat = "HH:mm:ss"; return df
+    }()
+
     func addLog(_ msg: String) {
-        let df = DateFormatter(); df.dateFormat = "HH:mm:ss"
-        logs.append("\(df.string(from: Date())) \(msg)")
+        logs.append("\(Self.logDateFormatter.string(from: Date())) \(msg)")
         if logs.count > 300 { logs.removeFirst() }
     }
 
@@ -562,11 +620,11 @@ private func networkSetup(_ args: [String]) -> (Int32, String) {
 }
 
 /// Returns list of network services where proxy setup failed.
-private func setSystemProxy(_ enabled: Bool) -> [String] {
+private func setSystemProxy(_ enabled: Bool, port: Int = VPNManager.socksPort) -> [String] {
     var failures: [String] = []
     for svc in allNetworkServices() {
         if enabled {
-            let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", "10808"])
+            let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", "\(port)"])
             let (s2, e2) = networkSetup(["-setsocksfirewallproxystate", svc, "on"])
             if s1 != 0 || s2 != 0 {
                 failures.append("\(svc): \(e1) \(e2)".trimmingCharacters(in: .whitespaces))
