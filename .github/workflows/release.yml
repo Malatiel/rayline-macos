@@ -132,15 +132,16 @@ jobs:
           files: release/*.zip
           generate_release_notes: true
           body: |
-            ## Veil для macOS
+            ## Veil for macOS
 
-            ### Установка
-            1. Скачай архив под свою архитектуру:
-               - `veil-macos-arm64.zip` для Apple Silicon
-               - `veil-macos-x86_64.zip` для Intel
-            2. Распакуй → перетащи `veil.app` в `/Applications`
-            3. Запусти — при первом запуске автоматически скачается sing-box (~15 МБ)
+            ### Installation
+            1. Download
+            the archive for your architecture:
+               - `veil-macos-arm64.zip` for Apple Silicon
+               - `veil-macos-x86_64.zip` for Intel
+            2. Unzip → drag `veil.app` to `/Applications`
+            3. Launch — sing-box (~15 MB) will be downloaded automatically on first run
 
-            ### Требования
-            - macOS 13 Ventura или новее
-            - Apple Silicon (M1/M2/M3) или Intel
+            ### Requirements
+            - macOS 13 Ventura or newer
+            - Apple Silicon (M1/M2/M3) or Intel
