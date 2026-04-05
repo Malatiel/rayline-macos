@@ -11,7 +11,7 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 
 ## Features
 
-- **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions)
+- **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions); WireGuard configs live in `~/.veil/wireguard/`
 - **Export / copy link** — reconstruct a shareable proxy URL from any saved profile
 - **Auto-connect** — optionally reconnect to the active profile on app launch
 - Supports **VLESS** (TCP / WS / gRPC / HTTP/2, TLS, REALITY), **VMess**, **Shadowsocks** (SIP002 + legacy), **Trojan**

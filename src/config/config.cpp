@@ -9,11 +9,11 @@ namespace config {
 
 namespace fs = std::filesystem;
 
-// Get the config directory (~/.config/veil/)
+// Get the config directory (~/.veil/wireguard/)
 std::string get_config_dir() {
     const char* home = getenv("HOME");
     if (!home) throw std::runtime_error("HOME environment variable not set");
-    return std::string(home) + "/.config/veil";
+    return std::string(home) + "/.veil/wireguard";
 }
 
 // Ensure config directory exists

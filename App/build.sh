@@ -25,8 +25,8 @@ fi
 # To update: change SB_TAG, SB_VERSION, and the checksums from the official release.
 SB_TAG="v1.11.4"
 SB_VERSION="1.11.4"
-SB_SHA256_ARM64="1bf07590e1b704e44a4a77e3da59ab79a55009e40e tried5bd3fa24c67a5adb7c2"
-SB_SHA256_AMD64="a0b1c2d3e4f5a0b1c2d3e4f5a0b1c2d3e4f5a0b1c2d3e4f5a0b1c2d3e4f5a0b1"
+SB_SHA256_ARM64="f4349633befd75c972a5a958cbfb6236a1e20b585425ae7c3ec73e5fa29217c5"
+SB_SHA256_AMD64="ba5ee4d4630b6cb36c24f0f33d7f9b790b185eceebc74818ca6ff1283bd5e94b"
 
 SB_BINARY="$MACOS/sing-box"
 if [ ! -f "$SB_BINARY" ]; then
