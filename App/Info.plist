@@ -4,12 +4,18 @@
 <dict>
     <key>CFBundleName</key>
     <string>Veil</string>
+    <key>CFBundleDisplayName</key>
+    <string>Veil</string>
     <key>CFBundleIdentifier</key>
     <string>com.veil.app</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>1.0.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <!-- Hide from Dock — menu bar only app -->
@@ -19,5 +25,7 @@
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2025 Veil contributors. MIT License.</string>
 </dict>
 </plist>

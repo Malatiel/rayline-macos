@@ -249,6 +249,11 @@ struct ContentView: View {
             handleStateToast(newState)
             previousVpnState = newState
         }
+        .onChange(of: profileManager.lastError) { error in
+            if let error {
+                toastManager.show(error, style: .error)
+            }
+        }
     }
 
     // MARK: Sidebar
@@ -1123,10 +1128,10 @@ struct ContentView: View {
 
                 SettingsGroup(title: lang.t("Защита", "Protection"), icon: "shield") {
                     SettingsRow(
-                        title: "Kill Switch",
+                        title: lang.t("Прокси-защита", "Proxy Guard"),
                         subtitle: lang.t(
-                            "Блокирует трафик, если VPN внезапно оборвался",
-                            "Blocks traffic if the VPN drops unexpectedly"
+                            "Оставляет системный SOCKS-прокси включённым при обрыве VPN (приложения, использующие системный прокси, потеряют доступ в сеть до переподключения)",
+                            "Keeps system SOCKS proxy active when VPN drops (apps that honour system proxy will lose network access until you reconnect)"
                         )
                     ) {
                         Toggle("", isOn: $vpn.killSwitchEnabled)

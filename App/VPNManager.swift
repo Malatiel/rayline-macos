@@ -182,7 +182,17 @@ final class VPNManager: ObservableObject {
             return
         }
 
-        await Task.detached(priority: .utility) { setSystemProxy(true) }.value
+        let proxyFailures = await Task.detached(priority: .utility) { setSystemProxy(true) }.value
+        if !proxyFailures.isEmpty {
+            let detail = proxyFailures.joined(separator: "; ")
+            addLog(L.t("⚠ Не удалось настроить системный proxy: \(detail)",
+                       "⚠ Failed to set system proxy: \(detail)"))
+            stopProcess()
+            stopLogTail()
+            setState(.error(L.t("Не удалось применить системный proxy",
+                                "Failed to apply system proxy")))
+            return
+        }
         addLog(L.t("Подключено! SOCKS5 127.0.0.1:\(Self.socksPort)",
                    "Connected! SOCKS5 127.0.0.1:\(Self.socksPort)"))
         state = .connected
@@ -195,11 +205,20 @@ final class VPNManager: ObservableObject {
         stopPing()
         stopLogTail()
         stopProcess()
-        Task.detached(priority: .utility) { setSystemProxy(false) }
+        let L = LanguageManager.shared
+        Task.detached(priority: .utility) {
+            let failures = setSystemProxy(false)
+            if !failures.isEmpty {
+                await MainActor.run {
+                    self.addLog(L.t("⚠ Не удалось снять системный proxy: \(failures.joined(separator: "; "))",
+                                    "⚠ Failed to clear system proxy: \(failures.joined(separator: "; "))"))
+                }
+            }
+        }
         try? FileManager.default.removeItem(atPath: configPath)
         config = nil
         state  = .disconnected
-        addLog(LanguageManager.shared.t("Отключено", "Disconnected"))
+        addLog(L.t("Отключено", "Disconnected"))
     }
 
     private func handleUnexpectedDisconnect() {
@@ -212,15 +231,23 @@ final class VPNManager: ObservableObject {
             // Keep system proxy active → traffic fails → no leaks
             try? FileManager.default.removeItem(atPath: self.configPath)
             addLog(L.t(
-                "⚠️ Kill Switch: соединение оборвалось — трафик заблокирован",
-                "⚠️ Kill Switch: connection lost — traffic blocked"
+                "⚠️ Прокси-защита: соединение оборвалось — системный прокси оставлен включённым",
+                "⚠️ Proxy Guard: connection lost — system proxy kept active"
             ))
             setState(.error(L.t(
-                "Kill Switch: соединение оборвалось",
-                "Kill Switch: connection lost"
+                "Прокси-защита: соединение оборвалось",
+                "Proxy Guard: connection lost"
             )))
         } else {
-            Task.detached(priority: .utility) { setSystemProxy(false) }
+            Task.detached(priority: .utility) {
+                let failures = setSystemProxy(false)
+                if !failures.isEmpty {
+                    await MainActor.run {
+                        self.addLog(L.t("⚠ Не удалось снять proxy: \(failures.joined(separator: "; "))",
+                                        "⚠ Failed to clear proxy: \(failures.joined(separator: "; "))"))
+                    }
+                }
+            }
             try? FileManager.default.removeItem(atPath: self.configPath)
             addLog(L.t("Соединение оборвалось", "Connection lost"))
             setState(.error(L.t("Соединение оборвалось", "Connection lost")))
@@ -414,7 +441,7 @@ final class VPNManager: ObservableObject {
     }
 
     /// Strip ANSI colour escape sequences from sing-box log output.
-    private static func stripAnsi(_ s: String) -> String {
+    static func stripAnsi(_ s: String) -> String {
         // Matches ESC[ ... m sequences
         var result = ""
         var i = s.startIndex
@@ -519,24 +546,41 @@ private func allNetworkServices() -> [String] {
 private let kSocksPort = 10808
 
 /// Runs networksetup with the given arguments directly — no shell, no injection risk.
-@discardableResult
-private func networkSetup(_ args: [String]) -> Int32 {
+/// Returns (terminationStatus, stderrOutput).
+private func networkSetup(_ args: [String]) -> (Int32, String) {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
     p.arguments     = args
     p.standardOutput = FileHandle.nullDevice
-    p.standardError  = FileHandle.nullDevice
-    try? p.run(); p.waitUntilExit()
-    return p.terminationStatus
+    let errPipe = Pipe()
+    p.standardError  = errPipe
+    do {
+        try p.run()
+    } catch {
+        return (-1, error.localizedDescription)
+    }
+    p.waitUntilExit()
+    let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+    let errStr = String(data: errData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return (p.terminationStatus, errStr)
 }
 
-private func setSystemProxy(_ enabled: Bool) {
+/// Returns list of network services where proxy setup failed.
+private func setSystemProxy(_ enabled: Bool) -> [String] {
+    var failures: [String] = []
     for svc in allNetworkServices() {
         if enabled {
-            networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", String(kSocksPort)])
-            networkSetup(["-setsocksfirewallproxystate", svc, "on"])
+            let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", String(kSocksPort)])
+            let (s2, e2) = networkSetup(["-setsocksfirewallproxystate", svc, "on"])
+            if s1 != 0 || s2 != 0 {
+                failures.append("\(svc): \(e1) \(e2)".trimmingCharacters(in: .whitespaces))
+            }
         } else {
-            networkSetup(["-setsocksfirewallproxystate", svc, "off"])
+            let (s, e) = networkSetup(["-setsocksfirewallproxystate", svc, "off"])
+            if s != 0 {
+                failures.append("\(svc): \(e)")
+            }
         }
     }
+    return failures
 }

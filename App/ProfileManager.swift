@@ -3,13 +3,15 @@ import Foundation
 @MainActor
 final class ProfileManager: ObservableObject {
 
-    private static let profilesDir: URL = FileManager.default
+    static let defaultProfilesDir: URL = FileManager.default
         .homeDirectoryForCurrentUser
         .appendingPathComponent(".veil")
-    private static let profilesFile: URL = profilesDir
-        .appendingPathComponent("profiles.json")
+
+    let profilesDir: URL
+    let profilesFile: URL
 
     @Published var profiles: [ProxyConfig] = []
+    @Published var lastError: String?
     @Published var activeProfileId: UUID? {
         didSet { UserDefaults.standard.set(activeProfileId?.uuidString, forKey: "activeProfileId") }
     }
@@ -19,7 +21,13 @@ final class ProfileManager: ObservableObject {
         return profiles.first { $0.id == id }
     }
 
-    init() {
+    convenience init() {
+        self.init(profilesDir: Self.defaultProfilesDir)
+    }
+
+    init(profilesDir: URL) {
+        self.profilesDir = profilesDir
+        self.profilesFile = profilesDir.appendingPathComponent("profiles.json")
         activeProfileId = UserDefaults.standard.string(forKey: "activeProfileId")
             .flatMap(UUID.init)
         loadProfiles()
@@ -60,12 +68,18 @@ final class ProfileManager: ObservableObject {
 
     private func loadProfiles() {
         let fm = FileManager.default
-        let path = Self.profilesFile.path
+        let path = profilesFile.path
         guard fm.fileExists(atPath: path) else { return }
         do {
-            let data = try Data(contentsOf: Self.profilesFile)
+            let data = try Data(contentsOf: profilesFile)
             profiles = try JSONDecoder().decode([ProxyConfig].self, from: data)
+            lastError = nil
         } catch {
+            let L = LanguageManager.shared
+            lastError = L.t(
+                "Не удалось загрузить профили: \(error.localizedDescription)",
+                "Failed to load profiles: \(error.localizedDescription)"
+            )
             profiles = []
         }
     }
@@ -73,17 +87,22 @@ final class ProfileManager: ObservableObject {
     private func saveProfiles() {
         let fm = FileManager.default
         do {
-            if !fm.fileExists(atPath: Self.profilesDir.path) {
-                try fm.createDirectory(at: Self.profilesDir, withIntermediateDirectories: true)
+            if !fm.fileExists(atPath: profilesDir.path) {
+                try fm.createDirectory(at: profilesDir, withIntermediateDirectories: true)
             }
             let data = try JSONEncoder().encode(profiles)
-            try data.write(to: Self.profilesFile, options: .atomic)
+            try data.write(to: profilesFile, options: .atomic)
             try fm.setAttributes(
                 [.posixPermissions: 0o600],
-                ofItemAtPath: Self.profilesFile.path
+                ofItemAtPath: profilesFile.path
             )
+            lastError = nil
         } catch {
-            // Silent failure — file I/O errors are non-fatal
+            let L = LanguageManager.shared
+            lastError = L.t(
+                "Не удалось сохранить профили: \(error.localizedDescription)",
+                "Failed to save profiles: \(error.localizedDescription)"
+            )
         }
     }
 }

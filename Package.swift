@@ -8,13 +8,24 @@ let package = Package(
         .target(
             name: "VeilCore",
             path: "App",
-            sources: ["ProxyParser.swift"]
+            sources: [
+                "ProxyParser.swift",
+                "ProfileManager.swift",
+                "LanguageManager.swift",
+                "VPNManager.swift",
+                "ToastManager.swift",
+                "ThemeManager.swift"
+            ]
         ),
         .testTarget(
             name: "VeilTests",
             dependencies: ["VeilCore"],
             path: "Tests",
-            sources: ["ProxyParserTests.swift"]
+            sources: [
+                "ProxyParserTests.swift",
+                "ProfileManagerTests.swift",
+                "VPNManagerTests.swift"
+            ]
         )
     ]
 )
