@@ -56,8 +56,8 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 
 ```bash
 # Clone
-git clone https://github.com/your-username/Veil.git
-cd veil
+git clone https://github.com/Malatiel/veilVPN.git
+cd veilVPN
 
 # Build the macOS app (downloads sing-box, compiles Swift)
 cd App && bash build.sh
