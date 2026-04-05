@@ -1,11 +1,7 @@
 import SwiftUI
 import AppKit
 
-private let menuBarConnectedAccent = Color(
-    red: 0x38 / 255,
-    green: 0xE0 / 255,
-    blue: 0xA0 / 255
-)
+private let menuBarConnectedAccent = connectedAccent
 
 // MARK: - Entry point
 // Requires macOS 13+. Set LSUIElement = YES in Info.plist to hide Dock icon.

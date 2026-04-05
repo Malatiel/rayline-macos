@@ -11,7 +11,6 @@ ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-}"
 
 echo "🔨 Сборка veil.app..."
 rm -rf "$APP"
-rm -rf "$APP/Contents/_CodeSignature"
 if command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.provenance "$APP" 2>/dev/null || true
 fi

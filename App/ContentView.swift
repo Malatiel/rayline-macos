@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-private let connectedAccent = Color(
+let connectedAccent = Color(
     red: 0x38 / 255,
     green: 0xE0 / 255,
     blue: 0xA0 / 255

@@ -388,18 +388,18 @@ extension ProxyConfig {
     private func vmessURL() -> String {
         var j = "{"
         j += "\"v\":\"2\""
-        j += ",\"ps\":\"\(jsonEsc(name))\""
-        j += ",\"add\":\"\(jsonEsc(server))\""
+        j += ",\"ps\":\"\(esc(name))\""
+        j += ",\"add\":\"\(esc(server))\""
         j += ",\"port\":\"\(port)\""
-        j += ",\"id\":\"\(jsonEsc(uuid))\""
+        j += ",\"id\":\"\(esc(uuid))\""
         j += ",\"aid\":\"0\""
-        j += ",\"net\":\"\(jsonEsc(network))\""
+        j += ",\"net\":\"\(esc(network))\""
         j += ",\"type\":\"none\""
-        j += ",\"host\":\"\(jsonEsc(host))\""
-        j += ",\"path\":\"\(jsonEsc(path))\""
-        j += ",\"tls\":\"\(jsonEsc(security))\""
-        j += ",\"sni\":\"\(jsonEsc(sni))\""
-        j += ",\"fp\":\"\(jsonEsc(fp))\""
+        j += ",\"host\":\"\(esc(host))\""
+        j += ",\"path\":\"\(esc(path))\""
+        j += ",\"tls\":\"\(esc(security))\""
+        j += ",\"sni\":\"\(esc(sni))\""
+        j += ",\"fp\":\"\(esc(fp))\""
         j += "}"
         let b64 = Data(j.utf8).base64EncodedString()
         return "vmess://\(b64)"
@@ -435,7 +435,4 @@ extension ProxyConfig {
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
-    private func jsonEsc(_ s: String) -> String {
-        return esc(s) // reuse the existing esc() method
-    }
 }

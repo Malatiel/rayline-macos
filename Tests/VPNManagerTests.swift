@@ -110,7 +110,7 @@ final class VPNManagerTests: XCTestCase {
 
     func testDownloadErrorDescriptions() {
         // Just ensure they don't crash and return non-empty strings
-        for err: SingBoxDownloadError in [.parseError, .assetNotFound, .extractFailed, .checksumMismatch] {
+        for err: SingBoxDownloadError in [.extractFailed, .checksumMismatch] {
             let desc = err.errorDescription
             XCTAssertNotNil(desc)
             XCTAssertFalse(desc!.isEmpty)

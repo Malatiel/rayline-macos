@@ -201,19 +201,22 @@ static void launch_native_app() {
     std::string exe(buf);
     // exe = .../cmake-build-debug/veil
     // app = .../veil.app  (one level up from build dir)
+    std::string app = "veil.app";
     auto slash = exe.rfind('/');
     if (slash != std::string::npos) {
         std::string build_dir = exe.substr(0, slash);
         auto parent = build_dir.rfind('/');
         if (parent != std::string::npos) {
-            std::string project = build_dir.substr(0, parent);
-            std::string app = project + "/veil.app";
-            ::system(("open \"" + app + "\"").c_str());
-            return;
+            app = build_dir.substr(0, parent) + "/veil.app";
         }
     }
-    // Fallback: look next to the binary
-    ::system("open veil.app");
+    // Use execvp to avoid shell injection via path
+    pid_t pid = fork();
+    if (pid == 0) {
+        const char* argv[] = {"/usr/bin/open", app.c_str(), nullptr};
+        execv("/usr/bin/open", const_cast<char* const*>(argv));
+        _exit(1);
+    }
 }
 
 int main(int argc, char* argv[]) {

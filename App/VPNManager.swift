@@ -513,13 +513,11 @@ final class VPNManager: ObservableObject {
 // MARK: - Download error
 
 enum SingBoxDownloadError: LocalizedError {
-    case parseError, assetNotFound, extractFailed, checksumMismatch
+    case extractFailed, checksumMismatch
     var errorDescription: String? {
         let L = LanguageManager.shared
         switch self {
-        case .parseError:      return L.t("Ошибка разбора ответа GitHub API", "Failed to parse GitHub API response")
-        case .assetNotFound:   return L.t("Бинарник для этой архитектуры не найден в релизе", "Binary for this architecture not found in release")
-        case .extractFailed:   return L.t("Ошибка распаковки архива", "Failed to extract archive")
+        case .extractFailed:    return L.t("Ошибка распаковки архива", "Failed to extract archive")
         case .checksumMismatch: return L.t("Контрольная сумма SHA256 не совпадает — файл повреждён или подменён",
                                            "SHA256 checksum mismatch — file corrupted or tampered")
         }
@@ -542,8 +540,6 @@ private func allNetworkServices() -> [String] {
         .filter { !$0.hasPrefix("*") && !$0.contains("asterisk") && !$0.isEmpty }
     return services.isEmpty ? ["Wi-Fi"] : services
 }
-
-private let kSocksPort = 10808
 
 /// Runs networksetup with the given arguments directly — no shell, no injection risk.
 /// Returns (terminationStatus, stderrOutput).
@@ -570,7 +566,7 @@ private func setSystemProxy(_ enabled: Bool) -> [String] {
     var failures: [String] = []
     for svc in allNetworkServices() {
         if enabled {
-            let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", String(kSocksPort)])
+            let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", "10808"])
             let (s2, e2) = networkSetup(["-setsocksfirewallproxystate", svc, "on"])
             if s1 != 0 || s2 != 0 {
                 failures.append("\(svc): \(e1) \(e2)".trimmingCharacters(in: .whitespaces))
