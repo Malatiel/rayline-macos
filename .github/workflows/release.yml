@@ -6,6 +6,9 @@ on:
       - 'v*'          # Запускается при push тега: git tag v1.0.0 && git push --tags
   workflow_dispatch:  # Ручной запуск из GitHub UI
 
+permissions:
+  contents: write
+
 jobs:
   test:
     name: Tests
