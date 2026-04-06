@@ -107,19 +107,6 @@ static std::string find_singbox() {
     for (int i = 0; paths[i]; ++i) {
         if (::access(paths[i], X_OK) == 0) return paths[i];
     }
-    // Try PATH via which
-    FILE* f = ::popen("which sing-box 2>/dev/null", "r");
-    if (f) {
-        char buf[256] = {};
-        if (std::fgets(buf, sizeof(buf), f)) {
-            std::string p(buf);
-            while (!p.empty() && (p.back() == '\n' || p.back() == '\r' || p.back() == ' '))
-                p.pop_back();
-            ::pclose(f);
-            if (!p.empty() && ::access(p.c_str(), X_OK) == 0) return p;
-        }
-        ::pclose(f);
-    }
     return "";
 }
 
@@ -972,4 +959,3 @@ void run_gui(const std::string& bundled_url) {
 
     srv.run();  // accept loop, blocks forever
 }
-

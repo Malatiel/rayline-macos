@@ -259,25 +259,6 @@ bool RouteManager::set_dns(const std::vector<std::string>& servers) {
         }
     }
 
-    // Save original /etc/resolv.conf contents before overwriting
-    {
-        std::ifstream ifs("/etc/resolv.conf");
-        if (ifs.is_open()) {
-            std::ostringstream ss;
-            ss << ifs.rdbuf();
-            saved_resolv_conf_ = ss.str();
-        }
-    }
-
-    // Write /etc/resolv.conf as well (for applications that use it directly)
-    FILE* f = fopen("/etc/resolv.conf", "w");
-    if (f) {
-        for (auto& s : servers) {
-            fprintf(f, "nameserver %s\n", s.c_str());
-        }
-        fclose(f);
-    }
-
     // Use networksetup to set DNS
     if (!saved_dns_service_.empty() && is_safe_shell_string(saved_dns_service_)) {
         std::string cmd = "networksetup -setdnsservers \"" + saved_dns_service_ + "\"";
@@ -309,17 +290,6 @@ void RouteManager::restore_dns() {
             }
         }
         run_cmd(cmd);
-    }
-
-    // Restore /etc/resolv.conf to its original contents
-    if (!saved_resolv_conf_.empty()) {
-        FILE* f = fopen("/etc/resolv.conf", "w");
-        if (f) {
-            fwrite(saved_resolv_conf_.data(), 1, saved_resolv_conf_.size(), f);
-            fclose(f);
-            std::cout << "[ROUTE] Restored /etc/resolv.conf" << std::endl;
-        }
-        saved_resolv_conf_.clear();
     }
 
     dns_modified_ = false;

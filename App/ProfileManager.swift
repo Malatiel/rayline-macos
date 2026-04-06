@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 @MainActor
 final class ProfileManager: ObservableObject {
@@ -91,11 +92,28 @@ final class ProfileManager: ObservableObject {
                 try fm.createDirectory(at: profilesDir, withIntermediateDirectories: true)
             }
             let data = try JSONEncoder().encode(profiles)
-            try data.write(to: profilesFile, options: .atomic)
-            try fm.setAttributes(
-                [.posixPermissions: 0o600],
-                ofItemAtPath: profilesFile.path
-            )
+            let tmpURL = profilesDir.appendingPathComponent(".profiles.\(UUID().uuidString).tmp")
+            let fd = open(tmpURL.path, O_WRONLY | O_CREAT | O_EXCL, mode_t(0o600))
+            guard fd >= 0 else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            do {
+                defer { close(fd) }
+                var offset = 0
+                while offset < data.count {
+                    let written = data.withUnsafeBytes { rawBuffer in
+                        write(fd, rawBuffer.baseAddress!.advanced(by: offset), data.count - offset)
+                    }
+                    if written <= 0 {
+                        throw CocoaError(.fileWriteUnknown)
+                    }
+                    offset += written
+                }
+            } catch {
+                try? fm.removeItem(at: tmpURL)
+                throw error
+            }
+            _ = try fm.replaceItemAt(profilesFile, withItemAt: tmpURL)
             lastError = nil
         } catch {
             let L = LanguageManager.shared

@@ -8,6 +8,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <atomic>
+#include <algorithm>
+#include <sys/time.h>
 
 struct HttpRequest {
     std::string method;
@@ -60,6 +63,15 @@ public:
         while (true) {
             int cli = ::accept(srv_fd_, nullptr, nullptr);
             if (cli < 0) continue;
+
+            int previous = active_connections_.fetch_add(1);
+            if (previous >= kMaxActiveConnections) {
+                active_connections_.fetch_sub(1);
+                ::close(cli);
+                continue;
+            }
+
+            configure_client_socket(cli);
             std::thread([this, cli]{ handle(cli); }).detach();
         }
     }
@@ -70,6 +82,8 @@ public:
 private:
     std::map<std::string, Handler> routes_;
     int srv_fd_ = -1;
+    std::atomic<int> active_connections_{0};
+    static constexpr int kMaxActiveConnections = 64;
 
     static std::string recv_all(int fd) {
         std::string buf;
@@ -127,17 +141,31 @@ private:
         // Body
         auto cl_it = req.headers.find("Content-Length");
         if (cl_it != req.headers.end()) {
-            size_t cl = std::stoul(cl_it->second);
-            auto body_start = raw.find("\r\n\r\n");
-            if (body_start != std::string::npos)
-                req.body = raw.substr(body_start + 4, cl);
+            try {
+                size_t cl = std::stoul(cl_it->second);
+                auto body_start = raw.find("\r\n\r\n");
+                if (body_start != std::string::npos)
+                    req.body = raw.substr(body_start + 4, cl);
+            } catch (...) {
+                req.body.clear();
+            }
         }
         return req;
     }
 
     void handle(int fd) {
+        struct ConnectionGuard {
+            int fd;
+            std::atomic<int>& counter;
+
+            ~ConnectionGuard() {
+                counter.fetch_sub(1);
+                ::close(fd);
+            }
+        } guard{fd, active_connections_};
+
         std::string raw = recv_all(fd);
-        if (raw.empty()) { ::close(fd); return; }
+        if (raw.empty()) { return; }
 
         HttpRequest req = parse(raw);
 
@@ -159,6 +187,11 @@ private:
             << resp.body;
         std::string s = out.str();
         ::send(fd, s.data(), s.size(), 0);
-        ::close(fd);
+    }
+
+    void configure_client_socket(int fd) {
+        struct timeval timeout {5, 0};
+        ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
     }
 };

@@ -25,7 +25,7 @@ public:
     // Delete all routes that were added by this manager
     void remove_all_routes();
 
-    // Set DNS servers (writes to /etc/resolv.conf backup and uses networksetup)
+    // Set DNS servers using networksetup for the active service
     // Returns true on success
     bool set_dns(const std::vector<std::string>& servers);
 
@@ -55,7 +55,6 @@ private:
     std::string          saved_default_gw_;
     std::string          saved_dns_service_;
     std::vector<std::string> saved_dns_servers_;
-    std::string          saved_resolv_conf_;
     bool                 dns_modified_ = false;
     bool                 default_route_saved_ = false;
 };

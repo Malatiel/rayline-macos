@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Network
 import CommonCrypto
+import Darwin
 
 @MainActor
 final class VPNManager: ObservableObject {
@@ -57,6 +58,26 @@ final class VPNManager: ObservableObject {
     private var logTailSource: DispatchSourceRead?
     private var pingTimer: Timer?
     private var disconnectTask: Task<Void, Never>?
+
+    private func writeSecureTextFile(_ text: String, to path: String) throws {
+        let data = Data(text.utf8)
+        let fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, mode_t(0o600))
+        guard fd >= 0 else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        defer { close(fd) }
+
+        var offset = 0
+        while offset < data.count {
+            let written = data.withUnsafeBytes { rawBuffer in
+                write(fd, rawBuffer.baseAddress!.advanced(by: offset), data.count - offset)
+            }
+            if written <= 0 {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            offset += written
+        }
+    }
 
     // MARK: - Init
 
@@ -131,8 +152,7 @@ final class VPNManager: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: Self.installDir,
                                                      withIntermediateDirectories: true)
-            try json.write(toFile: configPath, atomically: true, encoding: .utf8)
-            chmod(configPath, 0o600)
+            try writeSecureTextFile(json, to: configPath)
             addLog("Config → \(configPath)")
         } catch {
             setState(.error(L.t("Не удалось записать конфиг: \(error.localizedDescription)",
@@ -432,13 +452,28 @@ final class VPNManager: ObservableObject {
                     to: .hostPort(host: "127.0.0.1",
                                   port: NWEndpoint.Port(integerLiteral: UInt16(Self.socksPort))),
                     using: .tcp)
+                final class ResumeOnce: @unchecked Sendable {
+                    private let lock = NSLock()
+                    private var resumed = false
+                    private let cont: CheckedContinuation<Bool, Never>
+                    init(_ cont: CheckedContinuation<Bool, Never>) { self.cont = cont }
+                    func callAsFunction(_ value: Bool) {
+                        lock.lock()
+                        defer { lock.unlock() }
+                        guard !resumed else { return }
+                        resumed = true
+                        cont.resume(returning: value)
+                    }
+                }
+                let resumeOnce = ResumeOnce(cont)
+
                 conn.stateUpdateHandler = { state in
                     switch state {
                     case .ready:
                         conn.cancel()
-                        cont.resume(returning: true)
+                        resumeOnce(true)
                     case .failed, .cancelled:
-                        cont.resume(returning: false)
+                        resumeOnce(false)
                     default: break
                     }
                 }
@@ -547,16 +582,7 @@ final class VPNManager: ObservableObject {
         if let found = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
             return found
         }
-        // 4. Try `which`
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        p.arguments = ["sing-box"]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        try? p.run(); p.waitUntilExit()
-        let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return out.isEmpty ? nil : out
+        return nil
     }
 
     private var isArm64: Bool {
