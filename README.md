@@ -128,7 +128,7 @@ Veil/
 └── .github/workflows/release.yml  # CI: builds app and publishes releases
 ```
 
-The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/`) provides a standalone CLI and an alternative embedded HTTP GUI; both share the same proxy-URL parsing logic implemented independently in each language. A shared JSON test suite (`Tests/shared_test_cases.json`) ensures both implementations stay in sync.
+The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/`) provides an alternative embedded HTTP GUI and an experimental standalone CLI for development-oriented WireGuard workflows. The parser logic is implemented independently in each language, and a shared JSON test suite (`Tests/shared_test_cases.json`) helps keep the two implementations in sync.
 
 ---
 

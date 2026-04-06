@@ -42,6 +42,14 @@ target_include_directories(test_shared_cases PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 target_compile_options(test_shared_cases PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME shared_cases COMMAND test_shared_cases ${CMAKE_CURRENT_SOURCE_DIR}/Tests/shared_test_cases.json)
 
+add_executable(test_config
+    Tests/test_config.cpp
+    src/config/config.cpp
+)
+target_include_directories(test_config PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(test_config PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME config_persistence COMMAND test_config)
+
 message(STATUS "Build:  cmake -B cmake-build-debug && cmake --build cmake-build-debug")
 message(STATUS "Run:    sudo ./cmake-build-debug/veil connect <profile>")
 message(STATUS "App:    ./cmake-build-debug/veil  (opens veil.app)")

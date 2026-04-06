@@ -4,10 +4,42 @@
 #include <filesystem>
 #include <stdexcept>
 #include <iostream>
+#include <cctype>
 
 namespace config {
 
 namespace fs = std::filesystem;
+
+namespace {
+
+bool is_valid_config_name(const std::string& name) {
+    if (name.empty() || name == "." || name == "..") {
+        return false;
+    }
+
+    for (unsigned char ch : name) {
+        if (std::isalnum(ch) || ch == ' ' || ch == '.' || ch == '_' || ch == '-') {
+            continue;
+        }
+        return false;
+    }
+
+    return true;
+}
+
+void ensure_private_permissions(const fs::path& path, fs::perms perms) {
+    fs::permissions(path, perms, fs::perm_options::replace);
+}
+
+void validate_config_name(const std::string& name) {
+    if (!is_valid_config_name(name)) {
+        throw std::runtime_error(
+            "Invalid config name: use only letters, digits, spaces, dot, underscore, or hyphen"
+        );
+    }
+}
+
+} // namespace
 
 // Get the config directory (~/.veil/wireguard/)
 std::string get_config_dir() {
@@ -22,10 +54,12 @@ void ensure_config_dir() {
     if (!fs::exists(dir)) {
         fs::create_directories(dir);
     }
+    ensure_private_permissions(dir, fs::perms::owner_all);
 }
 
 // Get path for a named config
 std::string config_path(const std::string& name) {
+    validate_config_name(name);
     return get_config_dir() + "/" + name + ".json";
 }
 
@@ -39,6 +73,7 @@ void save_config(const VPNConfig& cfg) {
     }
     f << config_to_json(cfg).dump(2);
     f.close();
+    ensure_private_permissions(path, fs::perms::owner_read | fs::perms::owner_write);
     std::cout << "Config '" << cfg.name << "' saved to " << path << std::endl;
 }
 
