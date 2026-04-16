@@ -69,16 +69,21 @@ open ../veil.app
 ### Run tests
 
 ```bash
-# Swift tests (proxy parser)
+# Swift tests (proxy parser, profile manager, VPN manager)
 swift test
 
-# C++ tests (proxy parser + config generation + shared conformance)
+# C++ tests (proxy parser, config persistence, WireGuard crypto & protocol)
 cmake -B cmake-build-debug
 cmake --build cmake-build-debug
 ctest --test-dir cmake-build-debug -V
 ```
 
-The shared test suite (`Tests/shared_test_cases.json`) validates both the C++ and Swift proxy parsers against the same set of URIs and expected values, preventing behavioural drift between the two implementations.
+The C++ test suite includes:
+
+- **test_proxy_parser** (30 tests) — VLESS / VMess / Shadowsocks / Trojan parsing, IPv6, URL encoding, edge cases (malformed brackets, invalid ports, empty URIs), config generation, JSON escaping of control characters
+- **test_config** — config persistence with file-permission validation
+- **test_shared_cases** — cross-validates C++ and Swift parsers against the same JSON test vectors (`Tests/shared_test_cases.json`)
+- **test_wireguard** (33 tests) — BLAKE2s hashing, HKDF key derivation, ChaCha20-Poly1305 AEAD (roundtrip, wrong key, tampered ciphertext, wrong counter), Curve25519 keypair generation and DH, base64 encoding/decoding, nonce construction, Noise replay window (sequential, out-of-order, duplicates, boundary, large jumps), TAI64N timestamps, protocol struct sizes
 
 ---
 
@@ -121,7 +126,9 @@ Veil/
 │
 ├── Tests/
 │   ├── ProxyParserTests.swift  # 58 Swift XCTests (parser, Codable, toURL round-trip)
-│   ├── test_proxy_parser.cpp   # C++ unit tests
+│   ├── test_proxy_parser.cpp   # 30 C++ tests (parsing, edge cases, config gen)
+│   ├── test_wireguard.cpp      # 33 C++ tests (crypto, AEAD, DH, replay window)
+│   ├── test_config.cpp         # Config persistence and file permissions
 │   ├── test_shared_cases.cpp   # C++ runner for shared conformance tests
 │   └── shared_test_cases.json  # Shared test vectors for both parsers
 │
@@ -145,12 +152,15 @@ The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/
 
 ## Security notes
 
+- **No shell execution in the C++ core**: all external commands (`route`, `ifconfig`, `networksetup`) are invoked via `fork`/`execvp` with argument arrays — no shell is involved, eliminating command-injection surface entirely.
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - **Profile storage**: saved profiles (`~/.veil/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
 - The temporary config file (`/tmp/veil_singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
+- **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded `std::stoi` conversions, and safe `std::string::compare` for scheme detection. IP addresses and interface names are validated before use.
 - The embedded HTTP GUI server (`127.0.0.1:18080`) does **not** send `Access-Control-Allow-Origin: *`, preventing cross-origin requests from arbitrary websites.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
-- In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved there, so network service names with special characters cannot cause command injection.
+- In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.
+- **Standalone cryptography**: Curve25519, ChaCha20-Poly1305, and BLAKE2s are implemented from scratch with no external dependencies. The implementations are covered by unit tests including AEAD roundtrip, wrong-key rejection, ciphertext tampering detection, and DH shared-secret agreement.
 - Clipboard operations (copy link, copy log) are triggered only by explicit user action.
 
 ---

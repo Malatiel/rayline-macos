@@ -50,6 +50,13 @@ target_include_directories(test_config PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(test_config PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME config_persistence COMMAND test_config)
 
+add_executable(test_wireguard
+    Tests/test_wireguard.cpp
+)
+target_include_directories(test_wireguard PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_options(test_wireguard PRIVATE -Wall -Wextra -Wno-unused-parameter)
+add_test(NAME wireguard COMMAND test_wireguard)
+
 message(STATUS "Build:  cmake -B cmake-build-debug && cmake --build cmake-build-debug")
 message(STATUS "Run:    sudo ./cmake-build-debug/veil connect <profile>")
 message(STATUS "App:    ./cmake-build-debug/veil  (opens veil.app)")

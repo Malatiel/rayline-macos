@@ -17,7 +17,6 @@
 #include <chrono>
 #include <thread>
 #include <cstring>
-#include <cmath>
 
 #include <unistd.h>
 #include <fcntl.h>

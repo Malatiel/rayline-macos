@@ -4,14 +4,10 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <sys/select.h>
 #include <cstring>
-#include <cstdlib>
 #include <stdexcept>
 #include <iostream>
-#include <sstream>
-#include <ctime>
 #include <chrono>
 
 namespace wireguard {

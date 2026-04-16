@@ -3,7 +3,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <cctype>
-#include <algorithm>
 #include <map>
 
 namespace proxy {
@@ -73,7 +72,12 @@ static std::string base64_decode_str(const std::string& s) {
 
 static uint16_t parse_port(const std::string& s) {
     if (s.empty()) throw std::runtime_error("missing port");
-    int p = std::stoi(s);
+    int p;
+    try {
+        p = std::stoi(s);
+    } catch (const std::exception&) {
+        throw std::runtime_error("invalid port: " + s);
+    }
     if (p < 1 || p > 65535) throw std::runtime_error("port out of range: " + s);
     return static_cast<uint16_t>(p);
 }
@@ -113,7 +117,7 @@ static ProxyConfig parse_vless(const std::string& uri) {
     if (port_pos != std::string::npos) {
         cfg.server = hostport.substr(0, port_pos);
         // strip brackets for IPv6
-        if (!cfg.server.empty() && cfg.server.front() == '[') {
+        if (cfg.server.size() >= 2 && cfg.server.front() == '[' && cfg.server.back() == ']') {
             cfg.server = cfg.server.substr(1, cfg.server.size() - 2);
         }
         cfg.port = parse_port(hostport.substr(port_pos + 1));
@@ -289,7 +293,7 @@ static ProxyConfig parse_ss(const std::string& uri) {
     auto port_pos = hostport.rfind(':');
     if (port_pos != std::string::npos) {
         cfg.server = hostport.substr(0, port_pos);
-        if (!cfg.server.empty() && cfg.server.front() == '[')
+        if (cfg.server.size() >= 2 && cfg.server.front() == '[' && cfg.server.back() == ']')
             cfg.server = cfg.server.substr(1, cfg.server.size() - 2);
         cfg.port = parse_port(hostport.substr(port_pos + 1));
     } else {
@@ -331,7 +335,7 @@ static ProxyConfig parse_trojan(const std::string& uri) {
     auto port_pos = hostport.rfind(':');
     if (port_pos != std::string::npos) {
         cfg.server = hostport.substr(0, port_pos);
-        if (!cfg.server.empty() && cfg.server.front() == '[')
+        if (cfg.server.size() >= 2 && cfg.server.front() == '[' && cfg.server.back() == ']')
             cfg.server = cfg.server.substr(1, cfg.server.size() - 2);
         cfg.port = parse_port(hostport.substr(port_pos + 1));
     } else {
@@ -357,10 +361,10 @@ static ProxyConfig parse_trojan(const std::string& uri) {
 // ---- Public API ----
 
 ProxyConfig parse_uri(const std::string& uri) {
-    if (uri.substr(0, 8) == "vless://")  return parse_vless(uri);
-    if (uri.substr(0, 8) == "vmess://")  return parse_vmess(uri);
-    if (uri.substr(0, 5) == "ss://")     return parse_ss(uri);
-    if (uri.substr(0, 9) == "trojan://") return parse_trojan(uri);
+    if (uri.compare(0, 8, "vless://")  == 0) return parse_vless(uri);
+    if (uri.compare(0, 8, "vmess://")  == 0) return parse_vmess(uri);
+    if (uri.compare(0, 5, "ss://")     == 0) return parse_ss(uri);
+    if (uri.compare(0, 9, "trojan://") == 0) return parse_trojan(uri);
 
     ProxyConfig cfg;
     cfg.protocol = Protocol::UNKNOWN;

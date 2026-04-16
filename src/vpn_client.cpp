@@ -1,8 +1,6 @@
 #include "vpn_client.hpp"
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
-#include <cstring>
 #include <sys/select.h>
 #include <arpa/inet.h>
 #include <unistd.h>

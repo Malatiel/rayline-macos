@@ -297,6 +297,70 @@ static void test_config_escapes_tab_in_server() {
     CHECK(cfg.find("\\t") != std::string::npos);
 }
 
+// ── IPv6 bracket edge cases ────────────────────────────────────────────────
+
+static void test_ipv6_single_bracket_no_crash() {
+    // "[" as server should not underflow in substr
+    // This would parse weirdly but must not crash
+    try {
+        auto p = proxy::parse_uri("vless://uuid@[:443?security=tls");
+        // Server may be empty or "[" — just ensure no crash
+        (void)p;
+    } catch (const std::exception&) {
+        // throwing is also acceptable
+    }
+}
+
+static void test_ss_ipv6() {
+    auto p = proxy::parse_uri(
+        "ss://YWVzLTI1Ni1nY206bXlwYXNzd29yZA==@[::1]:8388#IPv6SS");
+    CHECK(p.valid());
+    CHECK_EQ(p.server, "::1");
+    CHECK_EQ(p.port, 8388);
+}
+
+static void test_trojan_ipv6() {
+    auto p = proxy::parse_uri(
+        "trojan://pass@[2001:db8::1]:443?sni=example.com#TrojanIPv6");
+    CHECK(p.valid());
+    CHECK_EQ(p.server, "2001:db8::1");
+    CHECK_EQ(p.port, 443);
+}
+
+// ── Short/empty URI edge cases ─────────────────────────────────────────────
+
+static void test_very_short_uri() {
+    auto p = proxy::parse_uri("ss");
+    CHECK(!p.valid());
+}
+
+static void test_empty_uri() {
+    auto p = proxy::parse_uri("");
+    CHECK(!p.valid());
+}
+
+// ── Invalid port ───────────────────────────────────────────────────────────
+
+static void test_invalid_port_string() {
+    bool threw = false;
+    try {
+        proxy::parse_uri("vless://uuid@host.com:notaport?security=tls");
+    } catch (const std::exception&) {
+        threw = true;
+    }
+    CHECK(threw);
+}
+
+static void test_port_out_of_range() {
+    bool threw = false;
+    try {
+        proxy::parse_uri("vless://uuid@host.com:99999?security=tls");
+    } catch (const std::exception&) {
+        threw = true;
+    }
+    CHECK(threw);
+}
+
 // ── main ───────────────────────────────────────────────────────────────────
 
 int main() {
@@ -323,9 +387,16 @@ int main() {
     test_url_encoded_name();
     test_config_escapes_newline_in_fp();
     test_config_escapes_tab_in_server();
+    test_ipv6_single_bracket_no_crash();
+    test_ss_ipv6();
+    test_trojan_ipv6();
+    test_very_short_uri();
+    test_empty_uri();
+    test_invalid_port_string();
+    test_port_out_of_range();
 
     if (g_failed == 0) {
-        std::cout << "All 23 tests passed.\n";
+        std::cout << "All 30 tests passed.\n";
         return 0;
     }
     std::cerr << g_failed << " test(s) failed.\n";

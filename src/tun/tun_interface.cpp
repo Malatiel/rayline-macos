@@ -4,21 +4,37 @@
 #include <sys/kern_control.h>
 #include <sys/sys_domain.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <net/if.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 
 #include <unistd.h>
 #include <cstring>
 #include <stdexcept>
 #include <iostream>
-#include <cstdio>
+#include <vector>
 
 // macOS utun control name
 #define UTUN_CONTROL_NAME "com.apple.net.utun_control"
 #define UTUN_OPT_IFNAME   2
 
 namespace tun {
+
+static int run_argv(const std::vector<std::string>& args) {
+    pid_t pid = fork();
+    if (pid < 0) return -1;
+    if (pid == 0) {
+        std::vector<const char*> argv;
+        for (auto& a : args) argv.push_back(a.c_str());
+        argv.push_back(nullptr);
+        execvp(argv[0], const_cast<char* const*>(argv.data()));
+        _exit(127);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
 
 TunInterface::TunInterface() : fd_(-1) {}
 
@@ -112,28 +128,18 @@ void TunInterface::configure(const std::string& local_ip,
         throw std::runtime_error("Invalid IP address in TUN configure");
     }
 
-    // Use ifconfig to configure the utun interface
-    // ifconfig utunX <local_ip> <peer_ip> up
-    char cmd[512];
-
-    // Set address and peer address (point-to-point)
-    snprintf(cmd, sizeof(cmd),
-             "ifconfig %s inet %s %s netmask %s up",
-             name_.c_str(),
-             local_ip.c_str(),
-             peer_ip.c_str(),
-             subnet_mask.c_str());
-
-    std::cout << "[TUN] " << cmd << std::endl;
-    int rc = system(cmd);
+    // Configure the utun interface via ifconfig (no shell)
+    std::cout << "[TUN] ifconfig " << name_ << " inet " << local_ip
+              << " " << peer_ip << " netmask " << subnet_mask << " up" << std::endl;
+    int rc = run_argv({"ifconfig", name_, "inet", local_ip, peer_ip,
+                       "netmask", subnet_mask, "up"});
     if (rc != 0) {
-        throw std::runtime_error("ifconfig failed (rc=" + std::to_string(rc) + "): " + cmd);
+        throw std::runtime_error("ifconfig failed (rc=" + std::to_string(rc) + ")");
     }
 
     // Set MTU
-    snprintf(cmd, sizeof(cmd), "ifconfig %s mtu %d", name_.c_str(), mtu);
-    std::cout << "[TUN] " << cmd << std::endl;
-    rc = system(cmd);
+    std::cout << "[TUN] ifconfig " << name_ << " mtu " << mtu << std::endl;
+    rc = run_argv({"ifconfig", name_, "mtu", std::to_string(mtu)});
     if (rc != 0) {
         std::cerr << "[TUN] Warning: failed to set MTU" << std::endl;
     }

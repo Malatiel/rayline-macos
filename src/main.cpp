@@ -4,7 +4,6 @@
 
 #include <iostream>
 #include <string>
-#include <vector>
 #include <csignal>
 #include <atomic>
 #include <thread>
