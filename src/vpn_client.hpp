@@ -74,8 +74,7 @@ private:
     void setup_tun(const std::string& address);
 
     // Set up routes for allowed IPs
-    void setup_routes(const config::PeerConfig& peer,
-                      const std::string& peer_gateway_ip);
+    void setup_routes(const config::PeerConfig& peer);
 
     // Set up DNS
     void setup_dns(const std::vector<std::string>& dns);

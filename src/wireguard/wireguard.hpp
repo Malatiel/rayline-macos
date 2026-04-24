@@ -93,7 +93,7 @@ private:
     // XOR message type with magic header
     uint32_t apply_magic_header(uint32_t type_field);
 
-    const config::PeerConfig&  peer_config_;
+    config::PeerConfig         peer_config_;
     crypto::Key                local_private_;
     crypto::Key                local_public_;
 

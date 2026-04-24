@@ -5,22 +5,15 @@
 #include <iostream>
 #include <string>
 #include <csignal>
-#include <atomic>
 #include <thread>
 #include <unistd.h>
 #include <mach-o/dyld.h>
 
-// Global VPN client instance for signal handler
-static VPNClient* g_vpn_client = nullptr;
-static std::atomic<bool> g_interrupted{false};
+static volatile sig_atomic_t g_interrupted = 0;
 
 void signal_handler(int sig) {
     if (sig == SIGINT || sig == SIGTERM) {
-        std::cout << "\n[MAIN] Signal " << sig << " received. Disconnecting..." << std::endl;
-        g_interrupted = true;
-        if (g_vpn_client) {
-            g_vpn_client->disconnect();
-        }
+        g_interrupted = sig;
     }
 }
 
@@ -132,7 +125,7 @@ int cmd_connect(const std::string& name) {
     }
 
     VPNClient client;
-    g_vpn_client = &client;
+    g_interrupted = 0;
 
     // Set up signal handling
     struct sigaction sa{};
@@ -146,14 +139,13 @@ int cmd_connect(const std::string& name) {
         client.connect(cfg);
     } catch (std::exception& e) {
         std::cerr << "Connection failed: " << e.what() << std::endl;
-        g_vpn_client = nullptr;
         return 1;
     }
 
     std::cout << "[MAIN] VPN connected. Press Ctrl+C to disconnect." << std::endl;
 
     // Wait until disconnected or interrupted
-    while (!g_interrupted && client.state() != VPNState::Disconnected) {
+    while (g_interrupted == 0 && client.state() != VPNState::Disconnected) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // Print periodic status
@@ -166,12 +158,14 @@ int cmd_connect(const std::string& name) {
         }
     }
 
-    if (!g_interrupted) {
-        // Exited due to disconnection
+    if (g_interrupted != 0) {
+        std::cout << "\n[MAIN] Signal " << g_interrupted
+                  << " received. Disconnecting..." << std::endl;
+    }
+    if (client.state() != VPNState::Disconnected) {
         client.disconnect();
     }
 
-    g_vpn_client = nullptr;
     return 0;
 }
 

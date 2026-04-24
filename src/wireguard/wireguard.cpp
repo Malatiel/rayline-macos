@@ -565,8 +565,8 @@ std::vector<uint8_t> WireGuardPeer::recv_packet() {
         return {};
     }
 
-    // Replay protection
-    if (!session_.check_replay(counter)) {
+    // Replay protection: only mutate the replay window after AEAD succeeds.
+    if (!session_.replay_would_accept(counter)) {
         std::cerr << "[WG] Replay attack detected (counter=" << counter << ")" << std::endl;
         return {};
     }
@@ -581,6 +581,7 @@ std::vector<uint8_t> WireGuardPeer::recv_packet() {
         return {};
     }
 
+    session_.update_replay_window(counter);
     return plaintext;
 }
 

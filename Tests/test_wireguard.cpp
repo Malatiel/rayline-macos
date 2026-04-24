@@ -307,6 +307,15 @@ static void test_replay_large_jump() {
     CHECK(!s.check_replay(900));  // 1001 - 900 = 101 > 64, too old
 }
 
+static void test_replay_probe_does_not_mutate() {
+    wireguard::NoiseSession s;
+    CHECK(s.replay_would_accept(10));
+    CHECK_EQ(s.recv_counter, (uint64_t)0);
+    CHECK_EQ(s.replay_window, (uint64_t)0);
+    s.update_replay_window(10);
+    CHECK(!s.replay_would_accept(10));
+}
+
 // ── TAI64N timestamp ─────────────────────────────────────────────────────
 
 static void test_tai64n_not_zero() {
@@ -380,6 +389,7 @@ int main() {
     test_replay_too_old();
     test_replay_window_boundary();
     test_replay_large_jump();
+    test_replay_probe_does_not_mutate();
     // TAI64N
     test_tai64n_not_zero();
     test_tai64n_monotonic();
@@ -387,7 +397,7 @@ int main() {
     test_message_struct_sizes();
     test_noise_constants();
 
-    int total = 33;
+    int total = 34;
     if (g_failed == 0) {
         std::cout << "All " << total << " wireguard tests passed.\n";
         return 0;

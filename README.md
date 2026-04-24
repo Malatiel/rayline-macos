@@ -20,7 +20,7 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 - **Theme switcher** — system, light, or dark appearance
 - **Toast notifications** — on connect, disconnect, error, and clipboard actions
 - **Log filtering** — search by text, filter by level (all / error / warning / info), copy to clipboard
-- Automatic macOS system SOCKS5 proxy configuration and cleanup on disconnect
+- Automatic macOS system SOCKS5 proxy configuration with previous proxy settings restored on disconnect
 - Bundled sing-box — no manual installation needed (downloaded automatically on first launch)
 - **Supply-chain protection**: sing-box is downloaded from a pinned release with SHA256 checksum verification
 - IPv4 and **IPv6** endpoint support
@@ -83,7 +83,7 @@ The C++ test suite includes:
 - **test_proxy_parser** (30 tests) — VLESS / VMess / Shadowsocks / Trojan parsing, IPv6, URL encoding, edge cases (malformed brackets, invalid ports, empty URIs), config generation, JSON escaping of control characters
 - **test_config** — config persistence with file-permission validation
 - **test_shared_cases** — cross-validates C++ and Swift parsers against the same JSON test vectors (`Tests/shared_test_cases.json`)
-- **test_wireguard** (33 tests) — BLAKE2s hashing, HKDF key derivation, ChaCha20-Poly1305 AEAD (roundtrip, wrong key, tampered ciphertext, wrong counter), Curve25519 keypair generation and DH, base64 encoding/decoding, nonce construction, Noise replay window (sequential, out-of-order, duplicates, boundary, large jumps), TAI64N timestamps, protocol struct sizes
+- **test_wireguard** (34 tests) — BLAKE2s hashing, HKDF key derivation, ChaCha20-Poly1305 AEAD (roundtrip, wrong key, tampered ciphertext, wrong counter), Curve25519 keypair generation and DH, base64 encoding/decoding, nonce construction, Noise replay window (sequential, out-of-order, duplicates, boundary, large jumps, non-mutating pre-auth checks), TAI64N timestamps, protocol struct sizes
 
 ---
 
@@ -127,7 +127,7 @@ Veil/
 ├── Tests/
 │   ├── ProxyParserTests.swift  # 58 Swift XCTests (parser, Codable, toURL round-trip)
 │   ├── test_proxy_parser.cpp   # 30 C++ tests (parsing, edge cases, config gen)
-│   ├── test_wireguard.cpp      # 33 C++ tests (crypto, AEAD, DH, replay window)
+│   ├── test_wireguard.cpp      # 34 C++ tests (crypto, AEAD, DH, replay window)
 │   ├── test_config.cpp         # Config persistence and file permissions
 │   ├── test_shared_cases.cpp   # C++ runner for shared conformance tests
 │   └── shared_test_cases.json  # Shared test vectors for both parsers
@@ -142,11 +142,11 @@ The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/
 ## How it works
 
 1. **Parse** — the proxy URL is validated and decoded into a `ProxyConfig` struct.
-2. **Generate** — a sing-box JSON configuration is written to `/tmp/veil_singbox.json` with owner-only permissions (`0600`).
+2. **Generate** — a sing-box JSON configuration is written to `~/.veil/singbox.json` with owner-only permissions (`0600`).
 3. **Launch** — sing-box is started as a child process; its output is tailed into the log view.
-4. **Proxy** — macOS system SOCKS5 proxy is set to `127.0.0.1:10808` for all active network services.
+4. **Proxy** — current macOS SOCKS5 proxy settings are saved, then the system SOCKS5 proxy is set to `127.0.0.1:10808` for all active network services.
 5. **Monitor** — a background timer measures TCP RTT to the VPN server every 3 s and displays it in the status card.
-6. **Cleanup** — on disconnect, sing-box is terminated, the SOCKS5 proxy is cleared, and the temporary config file is deleted.
+6. **Cleanup** — on disconnect, sing-box is terminated, the saved SOCKS5 proxy settings are restored, and the generated config file is deleted.
 
 ---
 
@@ -155,11 +155,12 @@ The Swift app (`App/`) is the primary user-facing component. The C++ code (`src/
 - **No shell execution in the C++ core**: all external commands (`route`, `ifconfig`, `networksetup`) are invoked via `fork`/`execvp` with argument arrays — no shell is involved, eliminating command-injection surface entirely.
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - **Profile storage**: saved profiles (`~/.veil/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
-- The temporary config file (`/tmp/veil_singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
+- The generated sing-box config file (`~/.veil/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
 - **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded `std::stoi` conversions, and safe `std::string::compare` for scheme detection. IP addresses and interface names are validated before use.
 - The embedded HTTP GUI server (`127.0.0.1:18080`) does **not** send `Access-Control-Allow-Origin: *`, preventing cross-origin requests from arbitrary websites.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
 - In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.
+- Before enabling the local SOCKS5 proxy, the Swift app snapshots each network service's previous SOCKS proxy state and restores it on disconnect instead of blindly disabling user proxy settings.
 - **Standalone cryptography**: Curve25519, ChaCha20-Poly1305, and BLAKE2s are implemented from scratch with no external dependencies. The implementations are covered by unit tests including AEAD roundtrip, wrong-key rejection, ciphertext tampering detection, and DH shared-secret agreement.
 - Clipboard operations (copy link, copy log) are triggered only by explicit user action.
 

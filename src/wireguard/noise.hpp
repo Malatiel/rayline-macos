@@ -123,21 +123,28 @@ struct NoiseSession {
     static constexpr int WINDOW_SIZE = 64;
     uint64_t replay_window = 0;  // bitmask
 
-    // Check and update replay window
-    // Returns true if packet is acceptable (not a replay)
-    bool check_replay(uint64_t counter) {
+    bool replay_would_accept(uint64_t counter) const {
         if (counter == 0 && recv_counter == 0) {
-            // First packet
-            recv_counter = 0;
-            replay_window = 1;
             return true;
         }
         if (counter + WINDOW_SIZE <= recv_counter) {
-            // Too old
             return false;
         }
         if (counter > recv_counter) {
-            // New max: slide window
+            return true;
+        }
+        uint64_t diff = recv_counter - counter;
+        uint64_t bit = 1ULL << diff;
+        return (replay_window & bit) == 0;
+    }
+
+    void update_replay_window(uint64_t counter) {
+        if (counter == 0 && recv_counter == 0) {
+            recv_counter = 0;
+            replay_window = 1;
+            return;
+        }
+        if (counter > recv_counter) {
             uint64_t shift = counter - recv_counter;
             if (shift >= WINDOW_SIZE) {
                 replay_window = 0;
@@ -146,15 +153,19 @@ struct NoiseSession {
             }
             recv_counter = counter;
             replay_window |= 1ULL;
-            return true;
+            return;
         }
-        // Within window
         uint64_t diff = recv_counter - counter;
-        uint64_t bit = 1ULL << diff;
-        if (replay_window & bit) {
-            return false;  // replay
+        replay_window |= (1ULL << diff);
+    }
+
+    // Check and update replay window
+    // Returns true if packet is acceptable (not a replay)
+    bool check_replay(uint64_t counter) {
+        if (!replay_would_accept(counter)) {
+            return false;
         }
-        replay_window |= bit;
+        update_replay_window(counter);
         return true;
     }
 };

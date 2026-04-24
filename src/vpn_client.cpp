@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <thread>
+#include <optional>
 
 // Parse "10.0.0.2/24" -> ip="10.0.0.2", prefix=24
 bool VPNClient::parse_address(const std::string& addr_cidr,
@@ -35,6 +36,40 @@ static std::string prefix_to_mask(int prefix) {
     a.s_addr = htonl(mask);
     return inet_ntoa(a);
 }
+
+namespace {
+
+struct EndpointRouteTarget {
+    std::string cidr;
+    bool ipv6 = false;
+};
+
+std::optional<EndpointRouteTarget> resolve_endpoint_route_target(const std::string& endpoint) {
+    struct sockaddr_storage addr{};
+    socklen_t addr_len = 0;
+    if (!wireguard::resolve_endpoint(endpoint, addr, addr_len)) {
+        return std::nullopt;
+    }
+
+    char host[INET6_ADDRSTRLEN] = {};
+    if (addr.ss_family == AF_INET) {
+        auto* in = reinterpret_cast<struct sockaddr_in*>(&addr);
+        if (!inet_ntop(AF_INET, &in->sin_addr, host, sizeof(host))) {
+            return std::nullopt;
+        }
+        return EndpointRouteTarget{std::string(host) + "/32", false};
+    }
+    if (addr.ss_family == AF_INET6) {
+        auto* in6 = reinterpret_cast<struct sockaddr_in6*>(&addr);
+        if (!inet_ntop(AF_INET6, &in6->sin6_addr, host, sizeof(host))) {
+            return std::nullopt;
+        }
+        return EndpointRouteTarget{std::string(host) + "/128", true};
+    }
+    return std::nullopt;
+}
+
+} // namespace
 
 VPNClient::VPNClient() {}
 
@@ -80,22 +115,20 @@ void VPNClient::connect(const config::VPNConfig& cfg) {
         //    VPN server traffic through the VPN itself)
         routes_ = std::make_unique<network::RouteManager>();
         routes_->save_default_route();
-        std::string default_gw = routes_->get_default_gateway();
-
-        // Parse server host from endpoint
-        std::string endpoint = peer_cfg.endpoint;
-        auto colon = endpoint.rfind(':');
-        std::string server_host = (colon != std::string::npos) ? endpoint.substr(0, colon) : endpoint;
-
-        // Route to VPN server via current default gateway (bypass VPN)
-        if (!default_gw.empty() && !server_host.empty()) {
-            try {
-                routes_->add_route(server_host + "/32", "", default_gw);
-                peer_gateway_ip_ = default_gw;
-            } catch (std::exception& e) {
-                std::cerr << "[VPN] Warning: could not add server route: " << e.what() << std::endl;
-            }
+        auto endpoint_route = resolve_endpoint_route_target(peer_cfg.endpoint);
+        if (!endpoint_route) {
+            throw std::runtime_error("Could not resolve endpoint for bypass route: " + peer_cfg.endpoint);
         }
+        std::string default_gw = endpoint_route->ipv6
+            ? routes_->get_default_gateway_ipv6()
+            : routes_->get_default_gateway();
+
+        // Route to VPN server via current default gateway (bypass VPN).
+        if (default_gw.empty()) {
+            throw std::runtime_error("Could not determine default gateway for endpoint: " + peer_cfg.endpoint);
+        }
+        routes_->add_route(endpoint_route->cidr, "", default_gw);
+        peer_gateway_ip_ = default_gw;
 
         // 5. Perform WireGuard handshake (retry up to 3 times)
         bool connected = false;
@@ -117,14 +150,7 @@ void VPNClient::connect(const config::VPNConfig& cfg) {
         }
 
         // 6. Set up allowed IP routes through VPN
-        std::string tun_name = tun_->name();
-        // Get our VPN IP as peer for point-to-point
-        std::string local_ip, remote_ip;
-        int prefix;
-        parse_address(cfg.address, local_ip, prefix);
-        // For point-to-point, use local IP as the peer endpoint
-        // (utun acts as point-to-point in macOS)
-        setup_routes(peer_cfg, local_ip);
+        setup_routes(peer_cfg);
 
         // 7. Set up DNS
         if (!cfg.dns.empty()) {
@@ -175,17 +201,10 @@ void VPNClient::setup_tun(const std::string& address) {
     tun_->configure(local_ip, peer_ip, mask, current_config_.mtu);
 }
 
-void VPNClient::setup_routes(const config::PeerConfig& peer,
-                              const std::string& local_ip)
+void VPNClient::setup_routes(const config::PeerConfig& peer)
 {
-    std::string tun_name = tun_->name();
-
     for (const auto& allowed_ip : peer.allowed_ips) {
-        try {
-            routes_->add_route(allowed_ip, tun_name, local_ip);
-        } catch (std::exception& e) {
-            std::cerr << "[VPN] Warning: route setup: " << e.what() << std::endl;
-        }
+        routes_->add_route(allowed_ip, tun_->name());
     }
 }
 

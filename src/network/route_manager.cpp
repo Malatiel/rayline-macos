@@ -15,12 +15,27 @@ namespace network {
 // Returns true if s looks like a valid IPv4/IPv6 address (only safe chars).
 static bool is_valid_ip(const std::string& s) {
     if (s.empty() || s.size() > 45) return false;
-    for (unsigned char c : s) {
+    auto percent = s.find('%');
+    std::string ip_part = percent == std::string::npos ? s : s.substr(0, percent);
+    std::string zone = percent == std::string::npos ? "" : s.substr(percent + 1);
+    if (ip_part.empty() || (!zone.empty() && ip_part.find(':') == std::string::npos)) {
+        return false;
+    }
+    for (unsigned char c : ip_part) {
         if (!isdigit(c) && c != '.' && c != ':' &&
             !(c >= 'a' && c <= 'f') && !(c >= 'A' && c <= 'F'))
             return false;
     }
+    for (unsigned char c : zone) {
+        if (!std::isalnum(c) && c != '_' && c != '.' && c != '-') {
+            return false;
+        }
+    }
     return true;
+}
+
+static bool is_ipv6_addr(const std::string& s) {
+    return s.find(':') != std::string::npos;
 }
 
 // Returns true if the string is safe for use as an interface/service name
@@ -112,7 +127,7 @@ static bool parse_cidr(const std::string& cidr, std::string& addr, int& prefix) 
     auto pos = cidr.find('/');
     if (pos == std::string::npos) {
         addr = cidr;
-        prefix = 32;
+        prefix = is_ipv6_addr(addr) ? 128 : 32;
         return true;
     }
     addr = cidr.substr(0, pos);
@@ -133,6 +148,41 @@ static std::string prefix_to_mask(int prefix) {
     return inet_ntoa(a);
 }
 
+static void run_add_or_change(const std::vector<std::string>& add_cmd,
+                              const std::vector<std::string>& change_cmd,
+                              const std::string& context)
+{
+    int rc = run_argv(add_cmd);
+    if (rc == 0) return;
+
+    std::cerr << "[ROUTE] route add returned " << rc
+              << ", trying route change" << std::endl;
+    int change_rc = run_argv(change_cmd);
+    if (change_rc != 0) {
+        throw std::runtime_error(context + " failed (add rc=" +
+                                 std::to_string(rc) + ", change rc=" +
+                                 std::to_string(change_rc) + ")");
+    }
+}
+
+static std::vector<std::string> ipv6_route_cmd(const std::string& action,
+                                                const std::string& addr,
+                                                int prefix,
+                                                const std::string& iface,
+                                                const std::string& gateway)
+{
+    std::vector<std::string> cmd = {
+        "route", action, "-inet6", "-net", addr, "-prefixlen", std::to_string(prefix)
+    };
+    if (!gateway.empty()) {
+        cmd.push_back(gateway);
+    } else {
+        cmd.push_back("-interface");
+        cmd.push_back(iface);
+    }
+    return cmd;
+}
+
 RouteManager::RouteManager() {}
 
 RouteManager::~RouteManager() {
@@ -148,28 +198,93 @@ void RouteManager::add_route(const std::string& cidr, const std::string& iface,
         throw std::runtime_error("Invalid CIDR: " + cidr);
     }
 
-    std::string mask = prefix_to_mask(prefix);
-
+    bool is_v6 = is_ipv6_addr(addr);
+    if (is_v6) {
+        if (prefix < 0 || prefix > 128) {
+            throw std::runtime_error("Invalid IPv6 prefix: " + cidr);
+        }
+    } else if (prefix < 0 || prefix > 32) {
+        throw std::runtime_error("Invalid IPv4 prefix: " + cidr);
+    }
+    if (!is_valid_ip(addr)) {
+        throw std::runtime_error("Invalid route address: " + addr);
+    }
     if (!gateway.empty() && !is_valid_ip(gateway)) {
         throw std::runtime_error("Invalid gateway IP: " + gateway);
+    }
+    if (!gateway.empty() && is_ipv6_addr(gateway) != is_v6) {
+        throw std::runtime_error("Gateway family does not match route: " + cidr);
     }
     if (!iface.empty() && !is_safe_shell_string(iface)) {
         throw std::runtime_error("Invalid interface name: " + iface);
     }
+    if (gateway.empty() && iface.empty()) {
+        throw std::runtime_error("Route requires gateway or interface: " + cidr);
+    }
+
+    if (is_v6) {
+        if (prefix == 0 && addr == "::") {
+            std::vector<Route> staged;
+            try {
+                run_add_or_change(
+                    ipv6_route_cmd("add", "::", 1, iface, gateway),
+                    ipv6_route_cmd("change", "::", 1, iface, gateway),
+                    "route add"
+                );
+                staged.push_back({"::/1", iface, gateway});
+                run_add_or_change(
+                    ipv6_route_cmd("add", "8000::", 1, iface, gateway),
+                    ipv6_route_cmd("change", "8000::", 1, iface, gateway),
+                    "route add"
+                );
+                staged.push_back({"8000::/1", iface, gateway});
+            } catch (...) {
+                for (const auto& r : staged) delete_route(r.cidr, r.iface, r.gateway);
+                throw;
+            }
+            added_routes_.insert(added_routes_.end(), staged.begin(), staged.end());
+            return;
+        }
+
+        run_add_or_change(
+            ipv6_route_cmd("add", addr, prefix, iface, gateway),
+            ipv6_route_cmd("change", addr, prefix, iface, gateway),
+            "route add"
+        );
+        added_routes_.push_back({cidr, iface, gateway});
+        return;
+    }
+
+    std::string mask = prefix_to_mask(prefix);
 
     if (addr == "0.0.0.0" && prefix == 0) {
         // Default route: use -net 0.0.0.0/1 and 128.0.0.0/1 trick
-        if (!gateway.empty()) {
-            run_argv({"route", "add", "-net", "0.0.0.0/1", gateway});
-            added_routes_.push_back({"0.0.0.0/1", iface, gateway});
-            run_argv({"route", "add", "-net", "128.0.0.0/1", gateway});
-            added_routes_.push_back({"128.0.0.0/1", iface, gateway});
-        } else {
-            run_argv({"route", "add", "-net", "0.0.0.0/1", "-interface", iface});
-            added_routes_.push_back({"0.0.0.0/1", iface, ""});
-            run_argv({"route", "add", "-net", "128.0.0.0/1", "-interface", iface});
-            added_routes_.push_back({"128.0.0.0/1", iface, ""});
+        std::vector<Route> staged;
+        auto add_v4 = [&](const std::string& net) {
+            if (!gateway.empty()) {
+                run_add_or_change(
+                    {"route", "add", "-net", net, gateway},
+                    {"route", "change", "-net", net, gateway},
+                    "route add"
+                );
+                staged.push_back({net, iface, gateway});
+            } else {
+                run_add_or_change(
+                    {"route", "add", "-net", net, "-interface", iface},
+                    {"route", "change", "-net", net, "-interface", iface},
+                    "route add"
+                );
+                staged.push_back({net, iface, ""});
+            }
+        };
+        try {
+            add_v4("0.0.0.0/1");
+            add_v4("128.0.0.0/1");
+        } catch (...) {
+            for (const auto& r : staged) delete_route(r.cidr, r.iface, r.gateway);
+            throw;
         }
+        added_routes_.insert(added_routes_.end(), staged.begin(), staged.end());
         return;
     }
 
@@ -180,10 +295,9 @@ void RouteManager::add_route(const std::string& cidr, const std::string& iface,
         cmd = {"route", "add", "-net", addr, "-netmask", mask, "-interface", iface};
     }
 
-    int rc = run_argv(cmd);
-    if (rc != 0) {
-        std::cerr << "[ROUTE] Warning: route add returned " << rc << std::endl;
-    }
+    std::vector<std::string> change_cmd = cmd;
+    change_cmd[1] = "change";
+    run_add_or_change(cmd, change_cmd, "route add");
     added_routes_.push_back({cidr, iface, gateway});
 }
 
@@ -194,6 +308,18 @@ void RouteManager::delete_route(const std::string& cidr, const std::string& ifac
     int prefix;
     if (!parse_cidr(cidr, addr, prefix)) {
         std::cerr << "[ROUTE] Invalid CIDR: " << cidr << std::endl;
+        return;
+    }
+
+    bool is_v6 = is_ipv6_addr(addr);
+
+    if (is_v6) {
+        if (addr == "::" && prefix == 0) {
+            run_argv({"route", "delete", "-inet6", "-net", "::", "-prefixlen", "1"});
+            run_argv({"route", "delete", "-inet6", "-net", "8000::", "-prefixlen", "1"});
+            return;
+        }
+        run_argv(ipv6_route_cmd("delete", addr, prefix, iface, gateway));
         return;
     }
 
@@ -222,11 +348,8 @@ void RouteManager::remove_all_routes() {
     added_routes_.clear();
 }
 
-std::string RouteManager::get_default_gateway() {
-    // Use route to get the default gateway directly
-    std::string out = exec_argv({"route", "-n", "get", "default"});
+static std::string parse_gateway_from_route_output(const std::string& out) {
     if (out.empty()) return "";
-    // Parse "gateway: x.x.x.x" from output
     std::istringstream iss(out);
     std::string line;
     while (std::getline(iss, line)) {
@@ -240,6 +363,15 @@ std::string RouteManager::get_default_gateway() {
         }
     }
     return "";
+}
+
+std::string RouteManager::get_default_gateway() {
+    // Use route to get the IPv4 default gateway directly.
+    return parse_gateway_from_route_output(exec_argv({"route", "-n", "get", "default"}));
+}
+
+std::string RouteManager::get_default_gateway_ipv6() {
+    return parse_gateway_from_route_output(exec_argv({"route", "-n", "get", "-inet6", "default"}));
 }
 
 std::string RouteManager::get_primary_service() {

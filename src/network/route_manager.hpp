@@ -34,6 +34,7 @@ public:
 
     // Get the default gateway (for saving before we override)
     std::string get_default_gateway();
+    std::string get_default_gateway_ipv6();
 
     // Get the primary network service name (for networksetup)
     std::string get_primary_service();

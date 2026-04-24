@@ -57,7 +57,10 @@ final class VPNManager: ObservableObject {
     private var logTailHandle: FileHandle?
     private var logTailSource: DispatchSourceRead?
     private var pingTimer: Timer?
+    private var connectTask: Task<Void, Never>?
     private var disconnectTask: Task<Void, Never>?
+    private var connectionGeneration: Int = 0
+    private var proxySnapshots: [ProxySnapshot]?
 
     private func writeSecureTextFile(_ text: String, to path: String) throws {
         let data = Data(text.utf8)
@@ -97,22 +100,22 @@ final class VPNManager: ObservableObject {
     // MARK: - Connect
 
     func connect(urlString: String) {
-        Task {
-            if !hasSingBox {
-                await downloadSingBox()
-                guard hasSingBox else { return }
+        startConnectTask { manager, generation in
+            if !manager.hasSingBox {
+                await manager.downloadSingBox()
+                guard manager.isCurrentConnect(generation), manager.hasSingBox else { return }
             }
-            await doConnect(urlString: urlString)
+            await manager.doConnect(urlString: urlString, generation: generation)
         }
     }
 
     func connect(config cfg: ProxyConfig) {
-        Task {
-            if !hasSingBox {
-                await downloadSingBox()
-                guard hasSingBox else { return }
+        startConnectTask { manager, generation in
+            if !manager.hasSingBox {
+                await manager.downloadSingBox()
+                guard manager.isCurrentConnect(generation), manager.hasSingBox else { return }
             }
-            await doConnectWith(config: cfg)
+            await manager.doConnectWith(config: cfg, generation: generation)
         }
     }
 
@@ -123,8 +126,28 @@ final class VPNManager: ObservableObject {
         connect(config: profile)
     }
 
-    private func doConnect(urlString: String) async {
+    private func startConnectTask(
+        _ operation: @escaping @MainActor (VPNManager, Int) async -> Void
+    ) {
+        connectTask?.cancel()
+        connectionGeneration += 1
+        let generation = connectionGeneration
+        connectTask = Task { [weak self] in
+            guard let self else { return }
+            await operation(self, generation)
+            if self.connectionGeneration == generation {
+                self.connectTask = nil
+            }
+        }
+    }
+
+    private func isCurrentConnect(_ generation: Int) -> Bool {
+        generation == connectionGeneration && !Task.isCancelled
+    }
+
+    private func doConnect(urlString: String, generation: Int) async {
         let L = LanguageManager.shared
+        guard isCurrentConnect(generation) else { return }
         state = .connecting
         addLog(L.t("Разбор ссылки…", "Parsing link…"))
 
@@ -132,19 +155,24 @@ final class VPNManager: ObservableObject {
         do {
             cfg = try ProxyParser.parse(urlString)
             guard cfg.isValid else {
-                setState(.error(L.t("Неверная ссылка (нет сервера/порта)",
-                                    "Invalid link (no server or port)")))
+                if isCurrentConnect(generation) {
+                    setState(.error(L.t("Неверная ссылка (нет сервера/порта)",
+                                        "Invalid link (no server or port)")))
+                }
                 return
             }
         } catch {
-            setState(.error(error.localizedDescription))
+            if isCurrentConnect(generation) {
+                setState(.error(error.localizedDescription))
+            }
             return
         }
-        await doConnectWith(config: cfg)
+        await doConnectWith(config: cfg, generation: generation)
     }
 
-    private func doConnectWith(config cfg: ProxyConfig) async {
+    private func doConnectWith(config cfg: ProxyConfig, generation: Int) async {
         let L = LanguageManager.shared
+        guard isCurrentConnect(generation) else { return }
         state = .connecting
         config = cfg
 
@@ -155,13 +183,17 @@ final class VPNManager: ObservableObject {
             try writeSecureTextFile(json, to: configPath)
             addLog("Config → \(configPath)")
         } catch {
-            setState(.error(L.t("Не удалось записать конфиг: \(error.localizedDescription)",
-                                "Failed to write config: \(error.localizedDescription)")))
+            if isCurrentConnect(generation) {
+                setState(.error(L.t("Не удалось записать конфиг: \(error.localizedDescription)",
+                                    "Failed to write config: \(error.localizedDescription)")))
+            }
             return
         }
 
         guard let sbPath = findSingBox() else {
-            setState(.error(L.t("sing-box не найден", "sing-box not found")))
+            if isCurrentConnect(generation) {
+                setState(.error(L.t("sing-box не найден", "sing-box not found")))
+            }
             return
         }
         addLog("sing-box: \(sbPath)")
@@ -180,8 +212,10 @@ final class VPNManager: ObservableObject {
         }
 
         do { try proc.run() } catch {
-            setState(.error(L.t("Не удалось запустить sing-box: \(error.localizedDescription)",
-                                "Failed to start sing-box: \(error.localizedDescription)")))
+            if isCurrentConnect(generation) {
+                setState(.error(L.t("Не удалось запустить sing-box: \(error.localizedDescription)",
+                                    "Failed to start sing-box: \(error.localizedDescription)")))
+            }
             return
         }
         process = proc
@@ -199,6 +233,10 @@ final class VPNManager: ObservableObject {
         startLogTail(path: logFile)
 
         let ready = await waitForSocksPort(timeout: 5.0, process: proc)
+        guard isCurrentConnect(generation) else {
+            cleanupCancelledConnect(process: proc)
+            return
+        }
         guard proc.isRunning else {
             setState(.error(L.t("sing-box завершился сразу (см. лог)",
                                 "sing-box exited immediately (check log tab)")))
@@ -214,11 +252,26 @@ final class VPNManager: ObservableObject {
             return
         }
 
-        let proxyFailures = await Task.detached(priority: .utility) { setSystemProxy(true) }.value
+        let proxyResult = await Task.detached(priority: .utility) {
+            enableSystemProxy(port: Self.socksPort)
+        }.value
+        proxySnapshots = proxyResult.snapshots
+        guard isCurrentConnect(generation) else {
+            _ = await Task.detached(priority: .utility) {
+                restoreSystemProxy(proxyResult.snapshots)
+            }.value
+            cleanupCancelledConnect(process: proc)
+            return
+        }
+        let proxyFailures = proxyResult.failures
         if !proxyFailures.isEmpty {
             let detail = proxyFailures.joined(separator: "; ")
             addLog(L.t("⚠ Не удалось настроить системный proxy: \(detail)",
                        "⚠ Failed to set system proxy: \(detail)"))
+            _ = await Task.detached(priority: .utility) {
+                restoreSystemProxy(proxyResult.snapshots)
+            }.value
+            proxySnapshots = nil
             stopProcess()
             stopLogTail()
             setState(.error(L.t("Не удалось применить системный proxy",
@@ -234,6 +287,9 @@ final class VPNManager: ObservableObject {
     // MARK: - Disconnect
 
     func disconnect() {
+        connectTask?.cancel()
+        connectTask = nil
+        connectionGeneration += 1
         guard disconnectTask == nil else { return }
         disconnectTask = Task { [weak self] in
             await self?.performDisconnect()
@@ -251,13 +307,15 @@ final class VPNManager: ObservableObject {
         stopProcess()
         state = .disconnecting
         let L = LanguageManager.shared
+        let snapshots = proxySnapshots
         let failures = await Task.detached(priority: .utility) {
-            setSystemProxy(false)
+            restoreSystemProxy(snapshots)
         }.value
         if !failures.isEmpty {
             addLog(L.t("⚠ Не удалось снять системный proxy: \(failures.joined(separator: "; "))",
                        "⚠ Failed to clear system proxy: \(failures.joined(separator: "; "))"))
         }
+        proxySnapshots = nil
         try? FileManager.default.removeItem(atPath: configPath)
         config = nil
         state  = .disconnected
@@ -274,6 +332,8 @@ final class VPNManager: ObservableObject {
 
         if killSwitchEnabled {
             // Keep system proxy active → traffic fails → no leaks
+            // Keep the snapshot too: a later manual disconnect can restore
+            // the user's previous SOCKS settings after the guard state.
             try? FileManager.default.removeItem(atPath: self.configPath)
             addLog(L.t(
                 "⚠️ Прокси-защита: соединение оборвалось — системный прокси оставлен включённым",
@@ -284,8 +344,10 @@ final class VPNManager: ObservableObject {
                 "Proxy Guard: connection lost"
             )))
         } else {
+            let snapshots = proxySnapshots
+            proxySnapshots = nil
             Task.detached(priority: .utility) {
-                let failures = setSystemProxy(false)
+                let failures = restoreSystemProxy(snapshots)
                 if !failures.isEmpty {
                     await MainActor.run { [weak self] in
                         self?.addLog(L.t("⚠ Не удалось снять proxy: \(failures.joined(separator: "; "))",
@@ -386,10 +448,12 @@ final class VPNManager: ObservableObject {
             downloadStatus = ""
 
         } catch {
-            addLog(L.t("ОШИБКА скачивания: \(error.localizedDescription)",
-                       "Download error: \(error.localizedDescription)"))
-            state          = .error(L.t("Не удалось скачать sing-box: \(error.localizedDescription)",
-                                        "Failed to download sing-box: \(error.localizedDescription)"))
+            if !Task.isCancelled {
+                addLog(L.t("ОШИБКА скачивания: \(error.localizedDescription)",
+                           "Download error: \(error.localizedDescription)"))
+                state = .error(L.t("Не удалось скачать sing-box: \(error.localizedDescription)",
+                                   "Failed to download sing-box: \(error.localizedDescription)"))
+            }
             isDownloading  = false
             downloadStatus = ""
         }
@@ -494,6 +558,19 @@ final class VPNManager: ObservableObject {
         addLog("sing-box PID=\(proc.processIdentifier) " +
                LanguageManager.shared.t("остановлен", "stopped"))
         process = nil
+    }
+
+    private func cleanupCancelledConnect(process proc: Process) {
+        stopLogTail()
+        if proc.isRunning {
+            proc.terminate()
+        }
+        if process?.processIdentifier == proc.processIdentifier {
+            process = nil
+        }
+        if state.isConnecting {
+            state = .disconnected
+        }
     }
 
     // MARK: - Log tailing
@@ -610,6 +687,13 @@ enum SingBoxDownloadError: LocalizedError {
 
 // MARK: - System proxy (nonisolated, blocking — run off main thread)
 
+private struct ProxySnapshot: Sendable {
+    let service: String
+    let enabled: Bool
+    let server: String
+    let port: String
+}
+
 private func allNetworkServices() -> [String] {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
@@ -623,6 +707,28 @@ private func allNetworkServices() -> [String] {
         .map(String.init)
         .filter { !$0.hasPrefix("*") && !$0.contains("asterisk") && !$0.isEmpty }
     return services.isEmpty ? ["Wi-Fi"] : services
+}
+
+private func networkSetupOutput(_ args: [String]) -> (Int32, String, String) {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
+    p.arguments     = args
+    let outPipe = Pipe()
+    let errPipe = Pipe()
+    p.standardOutput = outPipe
+    p.standardError  = errPipe
+    do {
+        try p.run()
+    } catch {
+        return (-1, "", error.localizedDescription)
+    }
+    p.waitUntilExit()
+    let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(),
+                     encoding: .utf8) ?? ""
+    let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(),
+                     encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return (p.terminationStatus, out, err)
 }
 
 /// Runs networksetup with the given arguments directly — no shell, no injection risk.
@@ -645,20 +751,73 @@ private func networkSetup(_ args: [String]) -> (Int32, String) {
     return (p.terminationStatus, errStr)
 }
 
-/// Returns list of network services where proxy setup failed.
-private func setSystemProxy(_ enabled: Bool, port: Int = VPNManager.socksPort) -> [String] {
+private func valueAfterColon(in line: String) -> String {
+    guard let colon = line.firstIndex(of: ":") else { return "" }
+    return String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func readProxySnapshot(service: String) -> ProxySnapshot {
+    let (status, output, _) = networkSetupOutput(["-getsocksfirewallproxy", service])
+    guard status == 0 else {
+        return ProxySnapshot(service: service, enabled: false, server: "", port: "")
+    }
+
+    var enabled = false
+    var server = ""
+    var port = ""
+    for line in output.split(separator: "\n").map(String.init) {
+        if line.hasPrefix("Enabled:") {
+            enabled = valueAfterColon(in: line).lowercased().hasPrefix("yes")
+        } else if line.hasPrefix("Server:") {
+            server = valueAfterColon(in: line)
+        } else if line.hasPrefix("Port:") {
+            port = valueAfterColon(in: line)
+        }
+    }
+    return ProxySnapshot(service: service, enabled: enabled, server: server, port: port)
+}
+
+private func enableSystemProxy(port: Int = VPNManager.socksPort) -> (failures: [String], snapshots: [ProxySnapshot]) {
     var failures: [String] = []
-    for svc in allNetworkServices() {
-        if enabled {
-            let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", "\(port)"])
-            let (s2, e2) = networkSetup(["-setsocksfirewallproxystate", svc, "on"])
+    let services = allNetworkServices()
+    let snapshots = services.map(readProxySnapshot)
+
+    for svc in services {
+        let (s1, e1) = networkSetup(["-setsocksfirewallproxy", svc, "127.0.0.1", "\(port)"])
+        let (s2, e2) = networkSetup(["-setsocksfirewallproxystate", svc, "on"])
+        if s1 != 0 || s2 != 0 {
+            failures.append("\(svc): \(e1) \(e2)".trimmingCharacters(in: .whitespaces))
+        }
+    }
+    return (failures, snapshots)
+}
+
+private func restoreSystemProxy(_ snapshots: [ProxySnapshot]?) -> [String] {
+    var failures: [String] = []
+    guard let snapshots else {
+        return failures
+    }
+
+    for snapshot in snapshots {
+        if snapshot.enabled {
+            guard !snapshot.server.isEmpty, !snapshot.port.isEmpty else {
+                failures.append("\(snapshot.service): saved proxy endpoint is empty")
+                continue
+            }
+            let (s1, e1) = networkSetup([
+                "-setsocksfirewallproxy",
+                snapshot.service,
+                snapshot.server,
+                snapshot.port
+            ])
+            let (s2, e2) = networkSetup(["-setsocksfirewallproxystate", snapshot.service, "on"])
             if s1 != 0 || s2 != 0 {
-                failures.append("\(svc): \(e1) \(e2)".trimmingCharacters(in: .whitespaces))
+                failures.append("\(snapshot.service): \(e1) \(e2)".trimmingCharacters(in: .whitespaces))
             }
         } else {
-            let (s, e) = networkSetup(["-setsocksfirewallproxystate", svc, "off"])
+            let (s, e) = networkSetup(["-setsocksfirewallproxystate", snapshot.service, "off"])
             if s != 0 {
-                failures.append("\(svc): \(e)")
+                failures.append("\(snapshot.service): \(e)")
             }
         }
     }
