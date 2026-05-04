@@ -8,6 +8,15 @@ RES="$APP/Contents/Resources"
 BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 ENTITLEMENTS_PATH="${ENTITLEMENTS_PATH:-}"
+SING_BOX_BINARY="${SING_BOX_BINARY:-}"
+TMPDIR_BUILD=""
+
+cleanup() {
+    if [ -n "$TMPDIR_BUILD" ] && [ -d "$TMPDIR_BUILD" ]; then
+        rm -rf "$TMPDIR_BUILD"
+    fi
+}
+trap cleanup EXIT
 
 echo "🔨 Сборка veil.app..."
 rm -rf "$APP"
@@ -39,36 +48,50 @@ SB_SHA256_AMD64="ba5ee4d4630b6cb36c24f0f33d7f9b790b185eceebc74818ca6ff1283bd5e94
 
 SB_BINARY="$MACOS/sing-box"
 if [ ! -f "$SB_BINARY" ]; then
-    echo "📦 Скачивание sing-box ($SB_ARCH)..."
-    TARBALL="sing-box-${SB_VERSION}-${SB_ARCH}.tar.gz"
-    URL="https://github.com/SagerNet/sing-box/releases/download/${SB_TAG}/${TARBALL}"
-
-    if [ "$SB_ARCH" = "darwin-arm64" ]; then
-        EXPECTED_SHA256="$SB_SHA256_ARM64"
+    if [ -n "$SING_BOX_BINARY" ]; then
+        if [ ! -x "$SING_BOX_BINARY" ]; then
+            echo "❌ SING_BOX_BINARY не найден или не исполняемый: $SING_BOX_BINARY"
+            exit 1
+        fi
+        echo "📦 Использование локального sing-box: $SING_BOX_BINARY"
+        cp "$SING_BOX_BINARY" "$SB_BINARY"
+        chmod +x "$SB_BINARY"
+        echo "   ✅ sing-box скопирован в bundle ($("$SB_BINARY" version 2>/dev/null | head -1))"
     else
-        EXPECTED_SHA256="$SB_SHA256_AMD64"
+        echo "📦 Скачивание sing-box ($SB_ARCH)..."
+        TARBALL="sing-box-${SB_VERSION}-${SB_ARCH}.tar.gz"
+        URL="https://github.com/SagerNet/sing-box/releases/download/${SB_TAG}/${TARBALL}"
+
+        if [ "$SB_ARCH" = "darwin-arm64" ]; then
+            EXPECTED_SHA256="$SB_SHA256_ARM64"
+        else
+            EXPECTED_SHA256="$SB_SHA256_AMD64"
+        fi
+
+        TMPDIR_BUILD="$(mktemp -d "${TMPDIR:-/tmp}/veil-build.XXXXXX")"
+        ARCHIVE="$TMPDIR_BUILD/singbox.tar.gz"
+        EXTRACT_DIR="$TMPDIR_BUILD/extract"
+        mkdir -p "$EXTRACT_DIR"
+
+        echo "   Версия: $SB_TAG  →  $URL"
+        curl -fsSL "$URL" -o "$ARCHIVE"
+
+        # Verify SHA256 checksum
+        ACTUAL_SHA256=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
+        if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "   ❌ SHA256 не совпадает!"
+            echo "      ожидалось: $EXPECTED_SHA256"
+            echo "      получено:  $ACTUAL_SHA256"
+            exit 1
+        fi
+        echo "   ✅ SHA256 проверена"
+
+        tar -xzf "$ARCHIVE" -C "$EXTRACT_DIR" --strip-components=1 \
+            "sing-box-${SB_VERSION}-${SB_ARCH}/sing-box"
+        mv "$EXTRACT_DIR/sing-box" "$SB_BINARY"
+        chmod +x "$SB_BINARY"
+        echo "   ✅ sing-box $SB_TAG установлен в bundle"
     fi
-
-    echo "   Версия: $SB_TAG  →  $URL"
-    curl -fsSL "$URL" -o /tmp/singbox.tar.gz
-
-    # Verify SHA256 checksum
-    ACTUAL_SHA256=$(shasum -a 256 /tmp/singbox.tar.gz | awk '{print $1}')
-    if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-        echo "   ❌ SHA256 не совпадает!"
-        echo "      ожидалось: $EXPECTED_SHA256"
-        echo "      получено:  $ACTUAL_SHA256"
-        rm -f /tmp/singbox.tar.gz
-        exit 1
-    fi
-    echo "   ✅ SHA256 проверена"
-
-    tar -xzf /tmp/singbox.tar.gz -C /tmp --strip-components=1 \
-        "sing-box-${SB_VERSION}-${SB_ARCH}/sing-box"
-    mv /tmp/sing-box "$SB_BINARY"
-    chmod +x "$SB_BINARY"
-    rm /tmp/singbox.tar.gz
-    echo "   ✅ sing-box $SB_TAG установлен в bundle"
 else
     echo "   ✅ sing-box уже в bundle ($(${SB_BINARY} version 2>/dev/null | head -1))"
 fi

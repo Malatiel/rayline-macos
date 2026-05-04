@@ -1167,6 +1167,36 @@ struct ContentView: View {
                         Toggle("", isOn: $vpn.autoConnectEnabled)
                             .labelsHidden()
                     }
+
+                    Divider()
+                        .padding(.leading, 16)
+
+                    SettingsRow(
+                        title: "sing-box",
+                        subtitle: vpn.customSingBoxPath.isEmpty
+                            ? lang.t("Используется встроенный, скачанный или системный бинарник",
+                                     "Uses bundled, downloaded, or system binary")
+                            : vpn.customSingBoxPath
+                    ) {
+                        HStack(spacing: 8) {
+                            if !vpn.customSingBoxPath.isEmpty {
+                                Button {
+                                    vpn.clearCustomSingBoxPath()
+                                } label: {
+                                    Image(systemName: "xmark.circle")
+                                }
+                                .buttonStyle(.borderless)
+                                .help(lang.t("Сбросить локальный путь", "Clear local path"))
+                            }
+
+                            Button {
+                                chooseSingBoxBinary()
+                            } label: {
+                                Label(lang.t("Выбрать", "Choose"), systemImage: "folder")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
                 }
 
                 SettingsGroup(title: lang.t("Оформление", "Appearance"), icon: "paintbrush") {
@@ -1252,6 +1282,16 @@ struct ContentView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.orange)
+
+                Button {
+                    chooseSingBoxBinary()
+                } label: {
+                    Label(
+                        lang.t("Выбрать локальный sing-box", "Choose local sing-box"),
+                        systemImage: "folder"
+                    )
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding(20)
@@ -1288,6 +1328,24 @@ struct ContentView: View {
             vpn.connect(config: profile)
         } else if !trimmed.isEmpty {
             vpn.connect(urlString: trimmed)
+        }
+    }
+
+    private func chooseSingBoxBinary() {
+        let panel = NSOpenPanel()
+        panel.title = lang.t("Выберите sing-box", "Choose sing-box")
+        panel.message = lang.t(
+            "Выберите исполняемый файл sing-box на этом Mac.",
+            "Choose the sing-box executable on this Mac."
+        )
+        panel.prompt = lang.t("Выбрать", "Choose")
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.resolvesAliases = true
+
+        if panel.runModal() == .OK, let url = panel.url {
+            vpn.setCustomSingBoxPath(url.path)
         }
     }
 

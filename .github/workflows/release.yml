@@ -130,17 +130,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/*.zip
-          generate_release_notes: true
+          generate_release_notes: false
           body: |
             ## Veil for macOS
 
             ### Installation
-            1. Download
-            the archive for your architecture:
+            1. Download the archive for your architecture:
                - `veil-macos-arm64.zip` for Apple Silicon
                - `veil-macos-x86_64.zip` for Intel
             2. Unzip → drag `veil.app` to `/Applications`
-            3. Launch — sing-box (~15 MB) will be downloaded automatically on first run
+            3. Launch — sing-box is bundled when available, can be selected locally, or downloaded automatically
 
             ### Requirements
             - macOS 13 Ventura or newer

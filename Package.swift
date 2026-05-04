@@ -8,6 +8,12 @@ let package = Package(
         .target(
             name: "VeilCore",
             path: "App",
+            exclude: [
+                "ContentView.swift",
+                "Info.plist",
+                "VeilApp.swift",
+                "build.sh"
+            ],
             sources: [
                 "ProxyParser.swift",
                 "ProfileManager.swift",
@@ -21,10 +27,20 @@ let package = Package(
             name: "VeilTests",
             dependencies: ["VeilCore"],
             path: "Tests",
+            exclude: [
+                "test_config.cpp",
+                "test_proxy_parser.cpp",
+                "test_shared_cases.cpp",
+                "test_wireguard.cpp"
+            ],
             sources: [
                 "ProxyParserTests.swift",
                 "ProfileManagerTests.swift",
+                "SharedCasesTests.swift",
                 "VPNManagerTests.swift"
+            ],
+            resources: [
+                .process("shared_test_cases.json")
             ]
         )
     ]

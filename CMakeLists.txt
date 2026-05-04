@@ -57,7 +57,7 @@ target_include_directories(test_wireguard PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sr
 target_compile_options(test_wireguard PRIVATE -Wall -Wextra -Wno-unused-parameter)
 add_test(NAME wireguard COMMAND test_wireguard)
 
-message(STATUS "Build:  cmake -B cmake-build-debug && cmake --build cmake-build-debug")
-message(STATUS "Run:    sudo ./cmake-build-debug/veil connect <profile>")
-message(STATUS "App:    ./cmake-build-debug/veil  (opens veil.app)")
-message(STATUS "Test:   cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug -V")
+message(STATUS "Build C++ dev CLI:  cmake -B cmake-build-debug && cmake --build cmake-build-debug")
+message(STATUS "Run C++ dev CLI:    sudo ./cmake-build-debug/veil connect <profile>")
+message(STATUS "Build macOS app:    cd App && bash build.sh")
+message(STATUS "Run tests:          cmake --build cmake-build-debug && ctest --test-dir cmake-build-debug -V")

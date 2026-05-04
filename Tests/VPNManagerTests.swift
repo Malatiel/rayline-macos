@@ -3,6 +3,15 @@ import XCTest
 
 @MainActor
 final class VPNManagerTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: VPNManager.customSingBoxPathKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: VPNManager.customSingBoxPathKey)
+        super.tearDown()
+    }
 
     // MARK: - stripAnsi
 
@@ -82,6 +91,53 @@ final class VPNManagerTests: XCTestCase {
         XCTAssertEqual(vpn.packetsRecv, 0)
     }
 
+    // MARK: - Local sing-box selection
+
+    func testSetCustomSingBoxPathAcceptsExecutableFile() throws {
+        let path = try makeTempSingBox(permissions: 0o755)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let vpn = VPNManager()
+        XCTAssertTrue(vpn.setCustomSingBoxPath(path))
+        XCTAssertEqual(vpn.customSingBoxPath, path)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey), path)
+        XCTAssertEqual(vpn.findSingBox(), path)
+        XCTAssertTrue(vpn.hasSingBox)
+    }
+
+    func testSetCustomSingBoxPathRejectsMissingFile() {
+        let path = NSTemporaryDirectory() + "missing-sing-box-\(UUID().uuidString)"
+
+        let vpn = VPNManager()
+        XCTAssertFalse(vpn.setCustomSingBoxPath(path))
+        XCTAssertTrue(vpn.customSingBoxPath.isEmpty)
+        XCTAssertNil(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey))
+        XCTAssertTrue(vpn.state.isError)
+    }
+
+    func testSetCustomSingBoxPathRejectsNonExecutableFile() throws {
+        let path = try makeTempSingBox(permissions: 0o644)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let vpn = VPNManager()
+        XCTAssertFalse(vpn.setCustomSingBoxPath(path))
+        XCTAssertTrue(vpn.customSingBoxPath.isEmpty)
+        XCTAssertNil(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey))
+        XCTAssertTrue(vpn.state.isError)
+    }
+
+    func testClearCustomSingBoxPathRemovesSavedPath() throws {
+        let path = try makeTempSingBox(permissions: 0o755)
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let vpn = VPNManager()
+        XCTAssertTrue(vpn.setCustomSingBoxPath(path))
+
+        vpn.clearCustomSingBoxPath()
+        XCTAssertTrue(vpn.customSingBoxPath.isEmpty)
+        XCTAssertNil(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey))
+    }
+
     func testStateEquatable() {
         XCTAssertEqual(VPNManager.State.disconnected, VPNManager.State.disconnected)
         XCTAssertEqual(VPNManager.State.connected, VPNManager.State.connected)
@@ -120,5 +176,16 @@ final class VPNManagerTests: XCTestCase {
             XCTAssertNotNil(desc)
             XCTAssertFalse(desc!.isEmpty)
         }
+    }
+
+    private func makeTempSingBox(permissions: Int) throws -> String {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sing-box-\(UUID().uuidString)")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: url)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: permissions],
+            ofItemAtPath: url.path
+        )
+        return url.path
     }
 }

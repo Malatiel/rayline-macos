@@ -23,7 +23,7 @@ struct ProxyConfig: Codable, Identifiable, Equatable {
     var method:        String = ""   // Shadowsocks cipher
     var allowInsecure: Bool   = false
 
-    var isValid: Bool { !server.isEmpty && port > 0 }
+    var isValid: Bool { !server.isEmpty && (1...65535).contains(port) }
 
     var protoName: String {
         switch proto {
@@ -108,21 +108,25 @@ enum ProxyParser {
             cfg.name = String(b64[r.upperBound...]).removingPercentEncoding ?? ""
             b64 = String(b64[..<r.lowerBound])
         }
-        guard let data = Data(base64Encoded: normalizeBase64(b64)),
-              let json = String(data: data, encoding: .utf8) else {
+        guard let data = Data(base64Encoded: normalizeBase64(b64)) else {
             throw ParseError.base64Failed
         }
-        cfg.uuid       = jsonField(json, "id")
-        cfg.server     = jsonField(json, "add")
-        cfg.port       = Int(jsonField(json, "port")) ?? 0
-        let net        = jsonField(json, "net");  cfg.network = net.isEmpty ? "tcp" : net
-        cfg.path       = jsonField(json, "path")
-        cfg.host       = jsonField(json, "host")
-        cfg.sni        = jsonField(json, "sni")
-        cfg.security   = jsonField(json, "tls")
-        cfg.fp         = jsonField(json, "fp")
+        guard let object = try? JSONSerialization.jsonObject(with: data),
+              let json = object as? [String: Any] else {
+            throw ParseError.base64Failed
+        }
+
+        cfg.uuid       = jsonString(json, "id")
+        cfg.server     = jsonString(json, "add")
+        cfg.port       = try jsonPort(json, "port")
+        let net        = jsonString(json, "net");  cfg.network = net.isEmpty ? "tcp" : net
+        cfg.path       = jsonString(json, "path")
+        cfg.host       = jsonString(json, "host")
+        cfg.sni        = jsonString(json, "sni")
+        cfg.security   = jsonString(json, "tls")
+        cfg.fp         = jsonString(json, "fp")
         cfg.encryption = "auto"
-        let ps = jsonField(json, "ps")
+        let ps = jsonString(json, "ps")
         cfg.name = cfg.name.isEmpty ? (ps.isEmpty ? cfg.server : ps) : cfg.name
         if cfg.server.isEmpty { throw ParseError.noServer }
         return cfg
@@ -200,14 +204,22 @@ enum ProxyParser {
         let hp = s
         if hp.hasPrefix("["), let end = hp.range(of: "]:") {
             cfg.server = String(hp[hp.index(after: hp.startIndex)..<end.lowerBound])
-            cfg.port   = Int(String(hp[end.upperBound...])) ?? 0
+            cfg.port = try parsePort(String(hp[end.upperBound...]))
+            if cfg.server.isEmpty { throw ParseError.noServer }
             return
         }
         if let c = hp.range(of: ":", options: .backwards) {
             cfg.server = String(hp[..<c.lowerBound])
-            cfg.port   = Int(String(hp[c.upperBound...])) ?? 0
+            cfg.port = try parsePort(String(hp[c.upperBound...]))
         } else { cfg.server = hp }
         if cfg.server.isEmpty { throw ParseError.noServer }
+    }
+
+    private static func parsePort(_ s: String) throws -> Int {
+        guard let port = Int(s), (1...65535).contains(port) else {
+            throw ParseError.invalidPort
+        }
+        return port
     }
 
     private static func parseQuery(_ qs: String) -> [String: String] {
@@ -235,26 +247,21 @@ enum ProxyParser {
         return s.removingPercentEncoding ?? s
     }
 
-    /// Minimal JSON string-field extractor (no dependencies)
-    static func jsonField(_ json: String, _ key: String) -> String {
-        guard let kr = json.range(of: "\"\(key)\"") else { return "" }
-        var i = kr.upperBound
-        while i < json.endIndex, json[i] == " " || json[i] == ":" { i = json.index(after: i) }
-        guard i < json.endIndex else { return "" }
-        if json[i] == "\"" {
-            i = json.index(after: i)
-            var val = ""
-            while i < json.endIndex, json[i] != "\"" {
-                if json[i] == "\\" { i = json.index(after: i); if i < json.endIndex { val.append(json[i]) } }
-                else { val.append(json[i]) }
-                i = json.index(after: i)
-            }
-            return val
-        } else {
-            var val = ""
-            while i < json.endIndex, json[i] != "," && json[i] != "}" { val.append(json[i]); i = json.index(after: i) }
-            return val.trimmingCharacters(in: .whitespaces)
+    private static func jsonString(_ json: [String: Any], _ key: String) -> String {
+        json[key] as? String ?? ""
+    }
+
+    private static func jsonPort(_ json: [String: Any], _ key: String) throws -> Int {
+        if let string = json[key] as? String {
+            return try parsePort(string)
         }
+        if let number = json[key] as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                throw ParseError.invalidPort
+            }
+            return try parsePort(number.stringValue)
+        }
+        throw ParseError.invalidPort
     }
 }
 

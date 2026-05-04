@@ -147,6 +147,31 @@ final class ProxyParserTests: XCTestCase {
         XCTAssertEqual(cfg.security, "tls")
     }
 
+    func testVmessUnicodeEscapesAreDecodedStructurally() throws {
+        let json = #"{"v":"2","ps":"\u0421\u0435\u0440\u0432\u0435\u0440","add":"vmess.unicode.io","port":443,"id":"44445555-6666-7777-8888-99990000aaaa","net":"ws","path":"\/v\u003fray","tls":"tls"}"#
+        let b64 = Data(json.utf8).base64EncodedString()
+        let cfg = try ProxyParser.parse("vmess://\(b64)")
+        XCTAssertEqual(cfg.name, "Сервер")
+        XCTAssertEqual(cfg.path, "/v?ray")
+        XCTAssertEqual(cfg.port, 443)
+    }
+
+    func testVmessArrayPortThrowsInvalidPort() {
+        let json = #"{"v":"2","ps":"BadPort","add":"vmess.bad.io","port":[443],"id":"55556666-7777-8888-9999-0000aaaabbbb","net":"tcp","tls":"tls"}"#
+        let b64 = Data(json.utf8).base64EncodedString()
+        XCTAssertThrowsError(try ProxyParser.parse("vmess://\(b64)")) { error in
+            XCTAssertEqual(error as? ParseError, .invalidPort)
+        }
+    }
+
+    func testVmessBooleanPortThrowsInvalidPort() {
+        let json = #"{"v":"2","ps":"BadPort","add":"vmess.bad.io","port":true,"id":"66667777-8888-9999-0000-aaaabbbbcccc","net":"tcp","tls":"tls"}"#
+        let b64 = Data(json.utf8).base64EncodedString()
+        XCTAssertThrowsError(try ProxyParser.parse("vmess://\(b64)")) { error in
+            XCTAssertEqual(error as? ParseError, .invalidPort)
+        }
+    }
+
     func testVmessInvalidBase64ThrowsParseError() {
         let uri = "vmess://this_is_not_valid_base64!!!"
         XCTAssertThrowsError(try ProxyParser.parse(uri)) { error in
@@ -242,6 +267,27 @@ final class ProxyParserTests: XCTestCase {
     func testEmptyStringThrowsParseError() {
         XCTAssertThrowsError(try ProxyParser.parse("")) { error in
             XCTAssertEqual(error as? ParseError, .unknownProtocol)
+        }
+    }
+
+    func testVlessZeroPortIsInvalid() {
+        let uri = "vless://uuid@example.com:0?security=tls"
+        XCTAssertThrowsError(try ProxyParser.parse(uri)) { error in
+            XCTAssertEqual(error as? ParseError, .invalidPort)
+        }
+    }
+
+    func testVlessPortAboveUInt16IsInvalid() {
+        let uri = "vless://uuid@example.com:65536?security=tls"
+        XCTAssertThrowsError(try ProxyParser.parse(uri)) { error in
+            XCTAssertEqual(error as? ParseError, .invalidPort)
+        }
+    }
+
+    func testTrojanNonNumericPortIsInvalid() {
+        let uri = "trojan://pw@example.com:not-a-port?security=tls"
+        XCTAssertThrowsError(try ProxyParser.parse(uri)) { error in
+            XCTAssertEqual(error as? ParseError, .invalidPort)
         }
     }
 
@@ -431,30 +477,6 @@ final class ProxyParserTests: XCTestCase {
         let uri = "trojan://pw@trojan.io:443?security=tls&allowInsecure=true"
         let cfg = try ProxyParser.parse(uri)
         XCTAssertTrue(cfg.allowInsecure)
-    }
-
-    // MARK: - jsonField Helper
-
-    func testJsonFieldStringValue() {
-        let json = #"{"name": "hello", "other": "world"}"#
-        XCTAssertEqual(ProxyParser.jsonField(json, "name"), "hello")
-    }
-
-    func testJsonFieldIntegerValue() {
-        // Integer value (no quotes) in JSON
-        let json = #"{"port": 8080, "name": "test"}"#
-        XCTAssertEqual(ProxyParser.jsonField(json, "port"), "8080")
-    }
-
-    func testJsonFieldMissingKeyReturnsEmptyString() {
-        let json = #"{"name": "hello"}"#
-        XCTAssertEqual(ProxyParser.jsonField(json, "missing"), "")
-    }
-
-    func testJsonFieldEscapedQuoteWithinStringValue() {
-        // Value contains an escaped quote: \"
-        let json = #"{"desc": "say \"hi\""}"#
-        XCTAssertEqual(ProxyParser.jsonField(json, "desc"), #"say "hi""#)
     }
 
     // MARK: - Codable Round-trip

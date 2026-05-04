@@ -1,5 +1,6 @@
 #include "proxy_parser.hpp"
 #include "../crypto/crypto.hpp"
+#include "../crypto/mini_json.hpp"
 #include <sstream>
 #include <stdexcept>
 #include <cctype>
@@ -73,13 +74,29 @@ static std::string base64_decode_str(const std::string& s) {
 static uint16_t parse_port(const std::string& s) {
     if (s.empty()) throw std::runtime_error("missing port");
     int p;
+    size_t consumed = 0;
     try {
-        p = std::stoi(s);
+        p = std::stoi(s, &consumed);
     } catch (const std::exception&) {
         throw std::runtime_error("invalid port: " + s);
     }
+    if (consumed != s.size()) throw std::runtime_error("invalid port: " + s);
     if (p < 1 || p > 65535) throw std::runtime_error("port out of range: " + s);
     return static_cast<uint16_t>(p);
+}
+
+static std::string json_string_field(const json_ns::value& obj, const std::string& key) {
+    if (!obj.is_object() || !obj.contains(key)) return "";
+    const auto& v = obj.at(key);
+    return v.is_string() ? v.get<std::string>() : "";
+}
+
+static uint16_t json_port_field(const json_ns::value& obj, const std::string& key) {
+    if (!obj.is_object() || !obj.contains(key)) return 443;
+    const auto& v = obj.at(key);
+    if (v.is_string()) return parse_port(v.get<std::string>());
+    if (v.is_int()) return parse_port(std::to_string(v.get<int>()));
+    throw std::runtime_error("invalid port");
 }
 
 // ---- VLESS parser ----
@@ -167,49 +184,21 @@ static ProxyConfig parse_vmess(const std::string& uri) {
         throw std::runtime_error("VMess URI: base64 decode failed");
     }
 
-    // Minimal JSON parse for vmess config keys
-    auto get_json_string = [&](const std::string& key) -> std::string {
-        // look for "key":"value"
-        std::string pat = "\"" + key + "\"";
-        auto pos = json_str.find(pat);
-        if (pos == std::string::npos) return "";
-        pos += pat.size();
-        // skip whitespace and colon
-        while (pos < json_str.size() && (json_str[pos] == ' ' || json_str[pos] == ':')) ++pos;
-        if (pos >= json_str.size()) return "";
-        if (json_str[pos] == '"') {
-            ++pos;
-            std::string val;
-            while (pos < json_str.size() && json_str[pos] != '"') {
-                if (json_str[pos] == '\\' && pos + 1 < json_str.size()) {
-                    ++pos; // skip escape
-                }
-                val += json_str[pos++];
-            }
-            return val;
-        } else {
-            // number
-            std::string val;
-            while (pos < json_str.size() && json_str[pos] != ',' && json_str[pos] != '}') {
-                val += json_str[pos++];
-            }
-            // trim
-            while (!val.empty() && std::isspace((unsigned char)val.back())) val.pop_back();
-            return val;
-        }
-    };
+    auto j = json_ns::value::parse(json_str);
+    if (!j.is_object()) {
+        throw std::runtime_error("VMess URI: JSON root is not an object");
+    }
 
-    cfg.uuid    = get_json_string("id");
-    cfg.server  = get_json_string("add");
-    std::string port_str = get_json_string("port");
-    if (!port_str.empty()) cfg.port = parse_port(port_str);
-    cfg.network    = get_json_string("net");
-    cfg.path       = get_json_string("path");
-    cfg.host       = get_json_string("host");
-    cfg.sni        = get_json_string("sni");
-    cfg.security   = get_json_string("tls");
-    cfg.fp         = get_json_string("fp");
-    std::string ps = get_json_string("ps");
+    cfg.uuid       = json_string_field(j, "id");
+    cfg.server     = json_string_field(j, "add");
+    cfg.port       = json_port_field(j, "port");
+    cfg.network    = json_string_field(j, "net");
+    cfg.path       = json_string_field(j, "path");
+    cfg.host       = json_string_field(j, "host");
+    cfg.sni        = json_string_field(j, "sni");
+    cfg.security   = json_string_field(j, "tls");
+    cfg.fp         = json_string_field(j, "fp");
+    std::string ps = json_string_field(j, "ps");
     if (cfg.name.empty()) cfg.name = ps;
     if (cfg.name.empty()) cfg.name = cfg.server;
     if (cfg.network.empty()) cfg.network = "tcp";

@@ -1,4 +1,5 @@
 #include "../src/proxy/proxy_parser.hpp"
+#include "../src/crypto/crypto.hpp"
 #include <cassert>
 #include <iostream>
 #include <string>
@@ -95,6 +96,30 @@ static void test_vmess_basic() {
     CHECK_EQ(p.path, "/ws");
     CHECK_EQ(p.security, "tls");
     CHECK_EQ(p.name, "Test");
+}
+
+static void test_vmess_unicode_escapes() {
+    const std::string json =
+        R"({"v":"2","ps":"\u0421\u0435\u0440\u0432\u0435\u0440","add":"vmess.unicode.io","port":443,"id":"unicode-uuid","net":"ws","path":"\/v\u003fray","tls":"tls"})";
+    auto p = proxy::parse_uri("vmess://" + crypto::base64_encode(
+        reinterpret_cast<const uint8_t*>(json.data()), json.size()));
+    CHECK(p.valid());
+    CHECK_EQ(p.name, "Сервер");
+    CHECK_EQ(p.path, "/v?ray");
+    CHECK_EQ(p.port, 443);
+}
+
+static void test_vmess_array_port_throws() {
+    const std::string json =
+        R"({"v":"2","ps":"BadPort","add":"vmess.bad.io","port":[443],"id":"bad-port-uuid","net":"tcp","tls":"tls"})";
+    bool threw = false;
+    try {
+        proxy::parse_uri("vmess://" + crypto::base64_encode(
+            reinterpret_cast<const uint8_t*>(json.data()), json.size()));
+    } catch (const std::exception&) {
+        threw = true;
+    }
+    CHECK(threw);
 }
 
 // ── Shadowsocks ────────────────────────────────────────────────────────────
@@ -351,6 +376,16 @@ static void test_invalid_port_string() {
     CHECK(threw);
 }
 
+static void test_partial_numeric_port_string() {
+    bool threw = false;
+    try {
+        proxy::parse_uri("vless://uuid@host.com:443abc?security=tls");
+    } catch (const std::exception&) {
+        threw = true;
+    }
+    CHECK(threw);
+}
+
 static void test_port_out_of_range() {
     bool threw = false;
     try {
@@ -371,6 +406,8 @@ int main() {
     test_vless_allow_insecure();
     test_vless_ipv6();
     test_vmess_basic();
+    test_vmess_unicode_escapes();
+    test_vmess_array_port_throws();
     test_vmess_url_safe_base64();
     test_ss_sip002();
     test_ss_name_fallback();
@@ -393,10 +430,11 @@ int main() {
     test_very_short_uri();
     test_empty_uri();
     test_invalid_port_string();
+    test_partial_numeric_port_string();
     test_port_out_of_range();
 
     if (g_failed == 0) {
-        std::cout << "All 30 tests passed.\n";
+        std::cout << "All proxy parser tests passed.\n";
         return 0;
     }
     std::cerr << g_failed << " test(s) failed.\n";

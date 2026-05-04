@@ -30,6 +30,7 @@ final class VPNManager: ObservableObject {
     @Published var hasSingBox:     Bool     = false
     @Published var isDownloading:  Bool     = false
     @Published var downloadStatus: String   = ""
+    @Published private(set) var customSingBoxPath: String = ""
 
     @Published var pingMs:      Int? = nil
     @Published var packetsSent: Int  = 0
@@ -46,6 +47,7 @@ final class VPNManager: ObservableObject {
     @Published var lastPingUpdate: Date?
 
     nonisolated static let socksPort: Int = 10808
+    nonisolated static let customSingBoxPathKey = "customSingBoxPath"
 
     // Directory where we install sing-box
     static let installDir: URL = FileManager.default
@@ -89,6 +91,7 @@ final class VPNManager: ObservableObject {
     init() {
         killSwitchEnabled = UserDefaults.standard.bool(forKey: "killSwitchEnabled")
         autoConnectEnabled = UserDefaults.standard.bool(forKey: "autoConnect")
+        customSingBoxPath = UserDefaults.standard.string(forKey: Self.customSingBoxPathKey) ?? ""
         hasSingBox = findSingBox() != nil
         if !hasSingBox {
             let L = LanguageManager.shared
@@ -646,13 +649,44 @@ final class VPNManager: ObservableObject {
 
     func clearLog() { logs.removeAll() }
 
+    @discardableResult
+    func setCustomSingBoxPath(_ path: String) -> Bool {
+        let L = LanguageManager.shared
+        guard FileManager.default.isExecutableFile(atPath: path) else {
+            addLog(L.t("Выбранный sing-box не найден или не исполняемый: \(path)",
+                       "Selected sing-box was not found or is not executable: \(path)"))
+            state = .error(L.t("Выбранный sing-box не исполняемый",
+                               "Selected sing-box is not executable"))
+            hasSingBox = findSingBox() != nil
+            return false
+        }
+
+        customSingBoxPath = path
+        UserDefaults.standard.set(path, forKey: Self.customSingBoxPathKey)
+        hasSingBox = true
+        addLog(L.t("Локальный sing-box выбран: \(path)",
+                   "Local sing-box selected: \(path)"))
+        return true
+    }
+
+    func clearCustomSingBoxPath() {
+        customSingBoxPath = ""
+        UserDefaults.standard.removeObject(forKey: Self.customSingBoxPathKey)
+        hasSingBox = findSingBox() != nil
+        let L = LanguageManager.shared
+        addLog(L.t("Локальный путь sing-box очищен",
+                   "Local sing-box path cleared"))
+    }
+
     func findSingBox() -> String? {
         // 1. Bundled inside .app/Contents/MacOS/ — highest priority
         let bundledInApp = Bundle.main.bundlePath + "/Contents/MacOS/sing-box"
-        // 2. Previously downloaded to ~/.veil/
+        // 2. User-selected local binary
+        let selected = customSingBoxPath
+        // 3. Previously downloaded to ~/.veil/
         let downloaded = Self.installDir.appendingPathComponent("sing-box").path
-        // 3. System-wide installs
-        let candidates = [bundledInApp, downloaded,
+        // 4. System-wide installs
+        let candidates = [bundledInApp, selected, downloaded,
                           "/opt/homebrew/bin/sing-box",
                           "/usr/local/bin/sing-box",
                           "/usr/bin/sing-box"]
