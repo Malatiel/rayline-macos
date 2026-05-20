@@ -109,12 +109,14 @@ swiftc \
     ThemeManager.swift \
     ToastManager.swift \
     ProfileManager.swift \
+    ProfilesSummary.swift \
     SettingsSummary.swift \
     StatusSummary.swift \
     VPNManager.swift \
     SharedViews.swift \
     ContentView.swift \
     LogScreen.swift \
+    ProfilesScreen.swift \
     StatusScreen.swift \
     SettingsScreen.swift \
     VeilApp.swift \

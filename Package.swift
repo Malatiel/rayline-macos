@@ -12,6 +12,7 @@ let package = Package(
                 "ContentView.swift",
                 "Info.plist",
                 "LogScreen.swift",
+                "ProfilesScreen.swift",
                 "SettingsScreen.swift",
                 "SharedViews.swift",
                 "StatusScreen.swift",
@@ -21,6 +22,7 @@ let package = Package(
             sources: [
                 "ProxyParser.swift",
                 "ProfileManager.swift",
+                "ProfilesSummary.swift",
                 "SettingsSummary.swift",
                 "StatusSummary.swift",
                 "LanguageManager.swift",
@@ -42,6 +44,7 @@ let package = Package(
             sources: [
                 "ProxyParserTests.swift",
                 "ProfileManagerTests.swift",
+                "ProfilesSummaryTests.swift",
                 "SharedCasesTests.swift",
                 "SettingsSummaryTests.swift",
                 "StatusSummaryTests.swift",

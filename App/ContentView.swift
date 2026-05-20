@@ -218,7 +218,20 @@ struct ContentView: View {
                             chooseSingBoxBinary: chooseSingBoxBinary
                         )
                     case .profiles:
-                        profilesScreen
+                        ProfilesScreen(
+                            urlText: $urlText,
+                            parseInfo: $parseInfo,
+                            parseOK: $parseOK,
+                            isImportExpanded: $isImportExpanded,
+                            renamingProfileId: $renamingProfileId,
+                            renameText: $renameText,
+                            profileNameText: $profileNameText,
+                            displayConfig: displayConfig,
+                            checkURL: checkURL,
+                            saveProfile: saveProfile,
+                            pasteFromClipboard: pasteFromClipboard,
+                            openStatus: { selectedSection = .status }
+                        )
                     case .log:
                         LogScreen(logSearchText: $logSearchText, logFilter: $logFilter)
                     case .settings:
@@ -301,290 +314,6 @@ struct ContentView: View {
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
         .background(.bar)
-    }
-
-    // MARK: Profiles
-
-    private var profilesScreen: some View {
-        DetailSurface {
-                HStack {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(lang.t("Профили", "Profiles"))
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                        Text(lang.t(
-                            "Управляйте профилями: добавляйте, переименовывайте, удаляйте и переключайтесь между ними.",
-                            "Manage profiles: add, rename, delete, and switch between them."
-                        ))
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isImportExpanded.toggle()
-                        }
-                    } label: {
-                        Label(
-                            isImportExpanded
-                                ? lang.t("Скрыть импорт", "Hide import")
-                                : lang.t("Импорт", "Import"),
-                            systemImage: isImportExpanded ? "chevron.up" : "plus.circle"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-
-                if profileManager.profiles.isEmpty {
-                    PlaceholderPanel(
-                        title: lang.t("Пока нет профиля", "No profile yet"),
-                        subtitle: lang.t(
-                            "Откройте импорт и вставьте `vless://`, `vmess://`, `ss://` или `trojan://` ссылку.",
-                            "Open import and paste a `vless://`, `vmess://`, `ss://`, or `trojan://` link."
-                        ),
-                        icon: "link.badge.plus"
-                    )
-                } else {
-                    ForEach(profileManager.profiles) { profile in
-                        profileRowCard(profile)
-                    }
-                }
-
-                if isImportExpanded || !trimmed.isEmpty {
-                    importPanel
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-        }
-    }
-
-    private func profileRowCard(_ cfg: ProxyConfig) -> some View {
-        let isActive = profileManager.activeProfileId == cfg.id
-        return VStack(spacing: 0) {
-            // Main row — tap to select
-            Button {
-                profileManager.selectProfile(id: cfg.id)
-            } label: {
-                HStack(spacing: 14) {
-                    // Selection indicator
-                    Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20))
-                        .foregroundStyle(isActive ? connectedAccent : .secondary.opacity(0.5))
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        if renamingProfileId == cfg.id {
-                            TextField(lang.t("Имя профиля", "Profile name"), text: $renameText, onCommit: {
-                                profileManager.renameProfile(id: cfg.id, name: renameText)
-                                renamingProfileId = nil
-                            })
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(maxWidth: 220)
-                            .onExitCommand {
-                                renamingProfileId = nil
-                            }
-                        } else {
-                            Text(cfg.name.isEmpty ? cfg.server : cfg.name)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.primary)
-                        }
-
-                        HStack(spacing: 8) {
-                            Text(cfg.protoName)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(protocolColor(cfg.proto))
-
-                            Text("·")
-                                .foregroundStyle(.secondary)
-
-                            Text("\(cfg.server):\(cfg.port)")
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(.secondary)
-
-                            if isActive {
-                                Text(lang.t("активный", "active"))
-                                    .font(.system(size: 11, weight: .bold))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(connectedAccent.opacity(0.15), in: Capsule())
-                                    .foregroundStyle(connectedAccent)
-                            }
-                        }
-                    }
-
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            // Action bar
-            HStack(spacing: 2) {
-                Spacer()
-
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(cfg.toURL(), forType: .string)
-                    toastManager.show(lang.t("Ссылка скопирована", "Link copied"), style: .success)
-                } label: {
-                    Label(lang.t("Копировать", "Copy"), systemImage: "doc.on.doc")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-
-                Text("·").foregroundStyle(.quaternary)
-
-                Button {
-                    renameText = cfg.name
-                    renamingProfileId = cfg.id
-                } label: {
-                    Label(lang.t("Переименовать", "Rename"), systemImage: "pencil")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-
-                Text("·").foregroundStyle(.quaternary)
-
-                Button {
-                    profileManager.deleteProfile(id: cfg.id)
-                } label: {
-                    Label(lang.t("Удалить", "Delete"), systemImage: "trash")
-                        .font(.system(size: 11))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.red.opacity(0.6))
-                .disabled(isActive && (vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting))
-                .help(isActive && (vpn.state.isConnected || vpn.state.isConnecting)
-                      ? lang.t("Отключитесь перед удалением активного профиля",
-                               "Disconnect before deleting the active profile")
-                      : "")
-            }
-            .padding(.top, 10)
-        }
-        .padding(18)
-        .background(
-            isActive
-                ? connectedAccent.opacity(0.06)
-                : Color.primary.opacity(0.045),
-            in: RoundedRectangle(cornerRadius: 18)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(
-                    isActive ? connectedAccent.opacity(0.3) : Color.primary.opacity(0.08),
-                    lineWidth: isActive ? 1.5 : 1
-                )
-        )
-    }
-
-    private var importPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeaderText(title: lang.t("Импорт ссылки", "Import link"), icon: "link")
-
-            ZStack(alignment: .topLeading) {
-                if urlText.isEmpty {
-                    Text("vless://  vmess://  ss://  trojan://")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.secondary.opacity(0.5))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 12)
-                        .allowsHitTesting(false)
-                }
-
-                TextEditor(text: $urlText)
-                    .font(.system(size: 12, design: .monospaced))
-                    .frame(minHeight: 98)
-                    .scrollContentBackground(.hidden)
-                    .padding(6)
-            }
-            .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(
-                        trimmed.isEmpty ? Color.secondary.opacity(0.22) : Color.accentColor.opacity(0.45),
-                        lineWidth: trimmed.isEmpty ? 1 : 1.4
-                    )
-            )
-
-            if !parseInfo.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: parseOK ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    Text(
-                        parseInfo
-                            .replacingOccurrences(of: "✅ ", with: "")
-                            .replacingOccurrences(of: "❌ ", with: "")
-                    )
-                    .font(.system(size: 12, design: .monospaced))
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                .foregroundStyle(parseOK ? connectedAccent : .red)
-            }
-
-            if parseOK {
-                HStack(spacing: 8) {
-                    Text(lang.t("Название:", "Name:"))
-                        .font(.system(size: 13, weight: .medium))
-                    TextField(
-                        draftConfig?.name ?? lang.t("Название профиля", "Profile name"),
-                        text: $profileNameText
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13))
-                }
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    checkURL()
-                } label: {
-                    Label(lang.t("Проверить", "Check"), systemImage: "checkmark.magnifyingglass")
-                }
-                .buttonStyle(.bordered)
-                .disabled(trimmed.isEmpty)
-
-                Button {
-                    saveProfile()
-                } label: {
-                    Label(lang.t("Сохранить", "Save"), systemImage: "square.and.arrow.down")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(draftConfig == nil || !parseOK)
-                .help(!parseOK && !trimmed.isEmpty
-                      ? lang.t("Сначала нажмите «Проверить»", "Press «Check» first")
-                      : "")
-
-                Button {
-                    pasteFromClipboard()
-                } label: {
-                    Label(lang.t("Вставить", "Paste"), systemImage: "doc.on.clipboard")
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button {
-                    selectedSection = .status
-                } label: {
-                    Text(lang.t("Открыть статус", "Open status"))
-                }
-                .buttonStyle(.bordered)
-                .disabled(displayConfig == nil)
-            }
-        }
-        .padding(20)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
-        .onChange(of: urlText) { _ in
-            parseInfo = ""
-            parseOK = false
-            profileNameText = ""
-        }
     }
 
     // MARK: Actions
@@ -733,16 +462,4 @@ struct ContentView: View {
         }
     }
 
-    private func protocolColor(_ proto: ProxyProtocol) -> Color {
-        switch proto {
-        case .vless:
-            return .blue
-        case .vmess:
-            return .indigo
-        case .shadowsocks:
-            return .teal
-        case .trojan:
-            return .orange
-        }
-    }
 }
