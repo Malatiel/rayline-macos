@@ -45,3 +45,9 @@ Actions secret names. Review the matches before pushing.
 - C++ tests pass with CMake/CTest;
 - no real credentials, logs, certificates, or personal paths are committed;
 - README, SECURITY, or PRIVACY docs updated when behavior changes.
+
+## Releases
+
+Release preparation is tracked in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+Do not publish release tags until local tests, privacy review, and generated
+artifact checks are complete.

@@ -88,6 +88,7 @@ ctest --test-dir cmake-build-debug -V
 
 Pull requests are expected to keep both Swift and C++ tests green. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and privacy review steps.
+For release steps, see [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 
 The C++ test suite includes:
 
@@ -176,6 +177,20 @@ The Swift app (`App/`) is the only user-facing UI shipped in release archives. T
 For vulnerability reporting and supported versions, see [SECURITY.md](SECURITY.md).
 For local data handling, logs, clipboard behavior, and uninstall notes, see
 [PRIVACY.md](PRIVACY.md).
+For common local issues, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+For safe support requests, see [SUPPORT.md](SUPPORT.md).
+
+---
+
+## Project documents
+
+- [CHANGELOG.md](CHANGELOG.md) — release notes.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — local checks and pull request rules.
+- [SECURITY.md](SECURITY.md) — vulnerability reporting and security boundaries.
+- [PRIVACY.md](PRIVACY.md) — local data and log handling.
+- [SUPPORT.md](SUPPORT.md) — safe support request guidance.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common local issues.
+- [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) — release process.
 
 ---
 
