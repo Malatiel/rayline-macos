@@ -12,12 +12,15 @@ let package = Package(
                 "ContentView.swift",
                 "Info.plist",
                 "LogScreen.swift",
+                "SettingsScreen.swift",
+                "SharedViews.swift",
                 "VeilApp.swift",
                 "build.sh"
             ],
             sources: [
                 "ProxyParser.swift",
                 "ProfileManager.swift",
+                "SettingsSummary.swift",
                 "LanguageManager.swift",
                 "VPNManager.swift",
                 "ToastManager.swift",
@@ -38,6 +41,7 @@ let package = Package(
                 "ProxyParserTests.swift",
                 "ProfileManagerTests.swift",
                 "SharedCasesTests.swift",
+                "SettingsSummaryTests.swift",
                 "VPNManagerTests.swift"
             ],
             resources: [

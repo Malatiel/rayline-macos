@@ -109,9 +109,12 @@ swiftc \
     ThemeManager.swift \
     ToastManager.swift \
     ProfileManager.swift \
+    SettingsSummary.swift \
     VPNManager.swift \
+    SharedViews.swift \
     ContentView.swift \
     LogScreen.swift \
+    SettingsScreen.swift \
     VeilApp.swift \
     -o "$MACOS/veil"
 

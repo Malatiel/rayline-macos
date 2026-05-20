@@ -1,0 +1,152 @@
+import SwiftUI
+import AppKit
+
+struct SettingsScreen: View {
+    @EnvironmentObject var vpn: VPNManager
+    @EnvironmentObject var lang: LanguageManager
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    let chooseSingBoxBinary: () -> Void
+
+    private var summary: SettingsSummary {
+        SettingsSummary(
+            state: vpn.state,
+            customSingBoxPath: vpn.customSingBoxPath,
+            language: lang.language
+        )
+    }
+
+    var body: some View {
+        DetailSurface {
+            Text(lang.t("Настройки", "Settings"))
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+
+            SettingsGroup(title: lang.t("Прокси", "Proxy"), icon: "network") {
+                SettingsRow(
+                    title: "SOCKS5",
+                    subtitle: lang.t("Локальный порт для приложений", "Local port for apps")
+                ) {
+                    Text(summary.socksEndpoint)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
+                SettingsRow(
+                    title: lang.t("Системный прокси", "System proxy"),
+                    subtitle: lang.t(
+                        "Включается автоматически во время соединения",
+                        "Turns on automatically while connected"
+                    )
+                ) {
+                    Text(summary.systemProxyStatus)
+                        .foregroundStyle(summary.isSystemProxyActive ? connectedAccent : .secondary)
+                }
+            }
+
+            SettingsGroup(title: lang.t("Защита", "Protection"), icon: "shield") {
+                SettingsRow(
+                    title: lang.t("Прокси-защита", "Proxy Guard"),
+                    subtitle: lang.t(
+                        "Оставляет системный SOCKS-прокси включённым при обрыве VPN (приложения, использующие системный прокси, потеряют доступ в сеть до переподключения)",
+                        "Keeps system SOCKS proxy active when VPN drops (apps that honour system proxy will lose network access until you reconnect)"
+                    )
+                ) {
+                    Toggle("", isOn: $vpn.killSwitchEnabled)
+                        .labelsHidden()
+                }
+            }
+
+            SettingsGroup(title: lang.t("Подключение", "Connection"), icon: "bolt.horizontal") {
+                SettingsRow(
+                    title: lang.t("Автоподключение", "Auto-connect"),
+                    subtitle: lang.t(
+                        "Подключаться при запуске, если есть активный профиль",
+                        "Connect on launch if an active profile exists"
+                    )
+                ) {
+                    Toggle("", isOn: $vpn.autoConnectEnabled)
+                        .labelsHidden()
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
+                SettingsRow(
+                    title: "sing-box",
+                    subtitle: summary.singBoxDescription
+                ) {
+                    HStack(spacing: 8) {
+                        if !vpn.customSingBoxPath.isEmpty {
+                            Button {
+                                vpn.clearCustomSingBoxPath()
+                            } label: {
+                                Image(systemName: "xmark.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help(lang.t("Сбросить локальный путь", "Clear local path"))
+                        }
+
+                        Button {
+                            chooseSingBoxBinary()
+                        } label: {
+                            Label(lang.t("Выбрать", "Choose"), systemImage: "folder")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+
+            SettingsGroup(title: lang.t("Оформление", "Appearance"), icon: "paintbrush") {
+                SettingsRow(
+                    title: lang.t("Тема", "Theme"),
+                    subtitle: nil
+                ) {
+                    Picker("", selection: $themeManager.theme) {
+                        Text(lang.t("Система", "System")).tag(AppTheme.system)
+                        Text(lang.t("Светлая", "Light")).tag(AppTheme.light)
+                        Text(lang.t("Тёмная", "Dark")).tag(AppTheme.dark)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 220)
+                }
+            }
+
+            SettingsGroup(title: lang.t("Система", "System"), icon: "gearshape.2") {
+                SettingsRow(
+                    title: lang.t("Язык интерфейса", "Interface language"),
+                    subtitle: lang.t("Переключение применяется сразу", "Switches instantly")
+                ) {
+                    Button(summary.languageToggleTitle) {
+                        lang.toggle()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
+                SettingsRow(
+                    title: lang.t("Приложение", "Application"),
+                    subtitle: lang.t("Закрыть Veil", "Quit Veil")
+                ) {
+                    Button(lang.t("Выйти", "Quit")) {
+                        quitApplication()
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+    }
+
+    private func quitApplication() {
+        Task {
+            if vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting {
+                await vpn.disconnectAndWait()
+            }
+            NSApplication.shared.terminate(nil)
+        }
+    }
+}

@@ -59,7 +59,7 @@ private struct PulsingDot: View {
     }
 }
 
-// MARK: - Shared UI
+// MARK: - Sidebar UI
 
 private struct SidebarItemLabel: View {
     let title: String
@@ -85,129 +85,6 @@ private struct SidebarItemLabel: View {
     }
 }
 
-private struct SectionHeaderText: View {
-    let title: String
-    let icon: String
-
-    var body: some View {
-        Label(title, systemImage: icon)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-    }
-}
-
-private struct MetricTile: View {
-    let title: String
-    let value: String
-    let icon: String
-    let accent: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: icon)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            Text(value)
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                .foregroundStyle(accent)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-private struct SettingsGroup<Content: View>: View {
-    let title: String
-    let icon: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeaderText(title: title, icon: icon)
-            VStack(spacing: 0) {
-                content
-            }
-            .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 16))
-        }
-    }
-}
-
-private struct SettingsRow<Content: View>: View {
-    let title: String
-    let subtitle: String?
-    @ViewBuilder var trailing: Content
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-            trailing
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-}
-
-struct PlaceholderPanel: View {
-    let title: String
-    let subtitle: String
-    let icon: String
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 28))
-                .foregroundStyle(.secondary.opacity(0.7))
-            Text(title)
-                .font(.headline)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 18))
-    }
-}
-
-private struct DetailSurface<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                content
-            }
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity, alignment: .top)
-            .padding(22)
-        }
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(NSColor.windowBackgroundColor),
-                    Color.primary.opacity(0.02)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-}
-
 // MARK: - Main window
 
 struct ContentView: View {
@@ -215,7 +92,6 @@ struct ContentView: View {
     @EnvironmentObject var lang: LanguageManager
     @EnvironmentObject var profileManager: ProfileManager
     @EnvironmentObject var toastManager: ToastManager
-    @ObservedObject private var themeManager = ThemeManager.shared
 
     @State private var selectedSection: AppSection = .status
     @State private var urlText = ""
@@ -365,7 +241,7 @@ struct ContentView: View {
                     case .log:
                         LogScreen(logSearchText: $logSearchText, logFilter: $logFilter)
                     case .settings:
-                        settingsScreen
+                        SettingsScreen(chooseSingBoxBinary: chooseSingBoxBinary)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -998,141 +874,6 @@ struct ContentView: View {
             parseInfo = ""
             parseOK = false
             profileNameText = ""
-        }
-    }
-
-    // MARK: Settings
-
-    private var settingsScreen: some View {
-        DetailSurface {
-                Text(lang.t("Настройки", "Settings"))
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-
-                SettingsGroup(title: lang.t("Прокси", "Proxy"), icon: "network") {
-                    SettingsRow(
-                        title: "SOCKS5",
-                        subtitle: lang.t("Локальный порт для приложений", "Local port for apps")
-                    ) {
-                        Text("127.0.0.1:\(VPNManager.socksPort)")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .textSelection(.enabled)
-                    }
-
-                    Divider()
-                        .padding(.leading, 16)
-
-                    SettingsRow(
-                        title: lang.t("Системный прокси", "System proxy"),
-                        subtitle: lang.t(
-                            "Включается автоматически во время соединения",
-                            "Turns on automatically while connected"
-                        )
-                    ) {
-                        Text(vpn.state.isConnected ? lang.t("Активен", "Active") : lang.t("Неактивен", "Inactive"))
-                            .foregroundStyle(vpn.state.isConnected ? connectedAccent : .secondary)
-                    }
-                }
-
-                SettingsGroup(title: lang.t("Защита", "Protection"), icon: "shield") {
-                    SettingsRow(
-                        title: lang.t("Прокси-защита", "Proxy Guard"),
-                        subtitle: lang.t(
-                            "Оставляет системный SOCKS-прокси включённым при обрыве VPN (приложения, использующие системный прокси, потеряют доступ в сеть до переподключения)",
-                            "Keeps system SOCKS proxy active when VPN drops (apps that honour system proxy will lose network access until you reconnect)"
-                        )
-                    ) {
-                        Toggle("", isOn: $vpn.killSwitchEnabled)
-                            .labelsHidden()
-                    }
-                }
-
-                SettingsGroup(title: lang.t("Подключение", "Connection"), icon: "bolt.horizontal") {
-                    SettingsRow(
-                        title: lang.t("Автоподключение", "Auto-connect"),
-                        subtitle: lang.t(
-                            "Подключаться при запуске, если есть активный профиль",
-                            "Connect on launch if an active profile exists"
-                        )
-                    ) {
-                        Toggle("", isOn: $vpn.autoConnectEnabled)
-                            .labelsHidden()
-                    }
-
-                    Divider()
-                        .padding(.leading, 16)
-
-                    SettingsRow(
-                        title: "sing-box",
-                        subtitle: vpn.customSingBoxPath.isEmpty
-                            ? lang.t("Используется встроенный, скачанный или системный бинарник",
-                                     "Uses bundled, downloaded, or system binary")
-                            : vpn.customSingBoxPath
-                    ) {
-                        HStack(spacing: 8) {
-                            if !vpn.customSingBoxPath.isEmpty {
-                                Button {
-                                    vpn.clearCustomSingBoxPath()
-                                } label: {
-                                    Image(systemName: "xmark.circle")
-                                }
-                                .buttonStyle(.borderless)
-                                .help(lang.t("Сбросить локальный путь", "Clear local path"))
-                            }
-
-                            Button {
-                                chooseSingBoxBinary()
-                            } label: {
-                                Label(lang.t("Выбрать", "Choose"), systemImage: "folder")
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                }
-
-                SettingsGroup(title: lang.t("Оформление", "Appearance"), icon: "paintbrush") {
-                    SettingsRow(
-                        title: lang.t("Тема", "Theme"),
-                        subtitle: nil
-                    ) {
-                        Picker("", selection: $themeManager.theme) {
-                            Text(lang.t("Система", "System")).tag(AppTheme.system)
-                            Text(lang.t("Светлая", "Light")).tag(AppTheme.light)
-                            Text(lang.t("Тёмная", "Dark")).tag(AppTheme.dark)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 220)
-                    }
-                }
-
-                SettingsGroup(title: lang.t("Система", "System"), icon: "gearshape.2") {
-                    SettingsRow(
-                        title: lang.t("Язык интерфейса", "Interface language"),
-                        subtitle: lang.t("Переключение применяется сразу", "Switches instantly")
-                    ) {
-                        Button(lang.language == .ru ? "EN" : "RU") {
-                            lang.toggle()
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    Divider()
-                        .padding(.leading, 16)
-
-                    SettingsRow(
-                        title: lang.t("Приложение", "Application"),
-                        subtitle: lang.t("Закрыть Veil", "Quit Veil")
-                    ) {
-                        Button(lang.t("Выйти", "Quit")) {
-                            Task {
-                                if vpn.state.isConnected || vpn.state.isConnecting || vpn.state.isDisconnecting {
-                                    await vpn.disconnectAndWait()
-                                }
-                                NSApplication.shared.terminate(nil)
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
         }
     }
 
