@@ -14,6 +14,7 @@ let package = Package(
                 "LogScreen.swift",
                 "SettingsScreen.swift",
                 "SharedViews.swift",
+                "StatusScreen.swift",
                 "VeilApp.swift",
                 "build.sh"
             ],
@@ -21,6 +22,7 @@ let package = Package(
                 "ProxyParser.swift",
                 "ProfileManager.swift",
                 "SettingsSummary.swift",
+                "StatusSummary.swift",
                 "LanguageManager.swift",
                 "VPNManager.swift",
                 "ToastManager.swift",
@@ -42,6 +44,7 @@ let package = Package(
                 "ProfileManagerTests.swift",
                 "SharedCasesTests.swift",
                 "SettingsSummaryTests.swift",
+                "StatusSummaryTests.swift",
                 "VPNManagerTests.swift"
             ],
             resources: [

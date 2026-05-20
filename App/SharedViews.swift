@@ -1,6 +1,42 @@
 import SwiftUI
 import AppKit
 
+struct PulsingDot: View {
+    let color: Color
+    let isActive: Bool
+
+    @State private var pulse = false
+
+    var body: some View {
+        ZStack {
+            if isActive {
+                Circle()
+                    .fill(color.opacity(0.28))
+                    .frame(width: 14, height: 14)
+                    .scaleEffect(pulse ? 1.0 : 0.45)
+                    .opacity(pulse ? 0.0 : 0.8)
+            }
+
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+        }
+        .frame(width: 14, height: 14)
+        .onAppear { updateAnimation(isActive) }
+        .onChange(of: isActive) { newValue in
+            updateAnimation(newValue)
+        }
+    }
+
+    private func updateAnimation(_ active: Bool) {
+        pulse = false
+        guard active else { return }
+        withAnimation(.easeInOut(duration: 1.15).repeatForever(autoreverses: false)) {
+            pulse = true
+        }
+    }
+}
+
 struct SectionHeaderText: View {
     let title: String
     let icon: String
