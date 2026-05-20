@@ -22,7 +22,9 @@ allowlist=(
 )
 
 regex="$(IFS='|'; echo "${patterns[*]}")"
-matches="$(git grep -n -E "$regex" -- . ':!Tests/shared_test_cases.json' || true)"
+matches="$(git grep -n -E "$regex" -- . \
+  ':!Tests/shared_test_cases.json' \
+  ':!scripts/privacy_scan.sh' || true)"
 
 if [[ -z "$matches" ]]; then
   echo "Privacy scan passed: no sensitive patterns found."
