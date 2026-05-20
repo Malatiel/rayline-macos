@@ -86,6 +86,9 @@ cmake --build cmake-build-debug
 ctest --test-dir cmake-build-debug -V
 ```
 
+Pull requests are expected to keep both Swift and C++ tests green. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for local checks and privacy review steps.
+
 The C++ test suite includes:
 
 - **test_proxy_parser** — VLESS / VMess / Shadowsocks / Trojan parsing, structural VMess JSON decoding, IPv6, URL encoding, edge cases (malformed brackets, invalid ports, empty URIs), config generation, JSON escaping of control characters
@@ -169,6 +172,10 @@ The Swift app (`App/`) is the only user-facing UI shipped in release archives. T
 - Before enabling the local SOCKS5 proxy, the Swift app snapshots each network service's previous SOCKS proxy state and restores it on disconnect instead of blindly disabling user proxy settings.
 - **Standalone cryptography**: Curve25519, ChaCha20-Poly1305, and BLAKE2s are implemented from scratch with no external dependencies. The implementations are covered by unit tests including AEAD roundtrip, wrong-key rejection, ciphertext tampering detection, and DH shared-secret agreement.
 - Clipboard operations (copy link, copy log) are triggered only by explicit user action.
+
+For vulnerability reporting and supported versions, see [SECURITY.md](SECURITY.md).
+For local data handling, logs, clipboard behavior, and uninstall notes, see
+[PRIVACY.md](PRIVACY.md).
 
 ---
 
