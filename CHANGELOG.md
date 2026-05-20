@@ -8,6 +8,20 @@ This project uses semantic versioning where possible:
 - minor releases for backward-compatible features;
 - major releases for breaking changes.
 
+## 1.0.7 - 2026-05-20
+
+### Added
+
+- Release workflow SHA256 checksum files for published macOS ZIP archives.
+- BDD-style summary tests for Status, Profiles, and Settings screen behavior.
+
+### Changed
+
+- Split the SwiftUI app shell into focused Status, Profiles, Log, Settings, and
+  shared view files.
+- Reduced `ContentView` to navigation, orchestration, and app-level actions.
+- Bumped macOS app version to `1.0.7`.
+
 ## 1.0.6 - 2026-05-20
 
 ### Added

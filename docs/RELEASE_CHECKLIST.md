@@ -7,6 +7,8 @@ Use this checklist before pushing a release tag.
 - Update `CFBundleShortVersionString` and `CFBundleVersion` in
   `App/Info.plist`.
 - Add a new entry to `CHANGELOG.md`.
+- Confirm GitHub Release artifacts will include `veil-macos-<arch>.zip` and
+  `veil-macos-<arch>.zip.sha256`.
 - Confirm the tag does not already exist:
 
 ```bash
@@ -43,6 +45,16 @@ cd App
 CI=1 SING_BOX_BINARY=/path/to/sing-box bash build.sh
 ```
 
+Create and verify local release artifacts:
+
+```bash
+mkdir -p release
+ditto -c -k --keepParent /path/to/Veil.app release/veil-macos-arm64.zip
+cd release
+shasum -a 256 veil-macos-arm64.zip > veil-macos-arm64.zip.sha256
+shasum -a 256 -c veil-macos-arm64.zip.sha256
+```
+
 ## Privacy and Security
 
 - Run `git diff --check`.
@@ -52,6 +64,7 @@ CI=1 SING_BOX_BINARY=/path/to/sing-box bash build.sh
   machine-specific paths.
 - Do not commit real proxy links or local sing-box binaries.
 - Confirm generated artifacts remain ignored by `.gitignore`.
+- Confirm local `release/` artifacts are not staged.
 
 ## Publish
 
@@ -69,7 +82,9 @@ The tag push starts the GitHub release workflow.
 
 - Confirm GitHub Actions completed for Swift tests, C++ tests, and both app
   architectures.
-- Download the release archives and confirm they unzip cleanly.
+- Download the release archives and `.sha256` files.
+- Verify each archive with `shasum -a 256 -c veil-macos-<arch>.zip.sha256`.
+- Confirm the verified archives unzip cleanly.
 - Launch the app on a test Mac.
 - Open the menu bar window and check import, save profile, settings, logs, and
   quit actions.

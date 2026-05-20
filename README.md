@@ -44,9 +44,13 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 1. Download the archive for your Mac from the [latest release](../../releases/latest):
    - `veil-macos-arm64.zip` for Apple Silicon
    - `veil-macos-x86_64.zip` for Intel
-2. Unzip and drag `veil.app` to `/Applications`.
-3. Open the app — if sing-box is missing, download it automatically or choose a local `sing-box` executable.
-4. Paste a proxy URL and click **Connect**.
+2. Download the matching `.sha256` file and verify the archive:
+   ```bash
+   shasum -a 256 -c veil-macos-arm64.zip.sha256
+   ```
+3. Unzip and drag `veil.app` to `/Applications`.
+4. Open the app — if sing-box is missing, download it automatically or choose a local `sing-box` executable.
+5. Paste a proxy URL and click **Connect**.
 
 > **Gatekeeper prompt:** if you use an unsigned local build, macOS may show an "unidentified developer" warning. Signed and notarized release builds should open normally.
 
@@ -118,10 +122,18 @@ URLs can be pasted directly from share links — embedded whitespace and line-br
 Veil/
 ├── App/                        # Swift macOS app (SwiftUI)
 │   ├── VeilApp.swift           # App entry point (MenuBarExtra)
-│   ├── ContentView.swift       # UI (status, profiles, log, settings)
+│   ├── ContentView.swift       # Navigation shell and app-level actions
+│   ├── StatusScreen.swift      # Main connection screen
+│   ├── ProfilesScreen.swift    # Profile list and import UI
+│   ├── LogScreen.swift         # Connection diagnostics log
+│   ├── SettingsScreen.swift    # App settings
+│   ├── SharedViews.swift       # Reusable SwiftUI components
 │   ├── VPNManager.swift        # sing-box lifecycle, proxy settings, TCP ping
 │   ├── ProxyParser.swift       # URL parser, config generator, URL export
 │   ├── ProfileManager.swift    # Multi-profile CRUD, persistence (~/.veil/)
+│   ├── StatusSummary.swift     # Presentation model for connection state
+│   ├── ProfilesSummary.swift   # Presentation model for profile state
+│   ├── SettingsSummary.swift   # Presentation model for settings state
 │   ├── LanguageManager.swift   # Bilingual support (RU / EN)
 │   ├── ThemeManager.swift      # System / light / dark appearance
 │   ├── ToastManager.swift      # Toast notification state

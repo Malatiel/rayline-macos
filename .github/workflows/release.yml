@@ -89,6 +89,12 @@ jobs:
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
           echo "Archive size: $(du -sh "$ZIP_PATH" | cut -f1)"
 
+      - name: Create SHA256 checksum
+        run: |
+          cd "$(dirname "$ZIP_PATH")"
+          shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$ZIP_PATH").sha256"
+          cat "$(basename "$ZIP_PATH").sha256"
+
       - name: Notarize and staple
         if: ${{ env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != '' && env.APPLE_SIGNING_IDENTITY != '' }}
         run: |
@@ -100,12 +106,16 @@ jobs:
           xcrun stapler staple "$APP_PATH"
           rm -f "$ZIP_PATH"
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+          cd "$(dirname "$ZIP_PATH")"
+          shasum -a 256 "$(basename "$ZIP_PATH")" > "$(basename "$ZIP_PATH").sha256"
 
       - name: Upload artifact (для каждого коммита)
         uses: actions/upload-artifact@v4
         with:
           name: veil-macos-${{ matrix.arch }}
-          path: ${{ env.ZIP_PATH }}
+          path: |
+            ${{ env.ZIP_PATH }}
+            ${{ env.ZIP_PATH }}.sha256
           retention-days: 30
 
   release:
@@ -123,23 +133,26 @@ jobs:
       - name: Flatten artifacts
         run: |
           mkdir -p release
-          find dist -name '*.zip' -exec mv {} release/ \;
+          find dist \( -name '*.zip' -o -name '*.sha256' \) -exec mv {} release/ \;
           ls -lh release
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.zip
+          files: |
+            release/*.zip
+            release/*.sha256
           generate_release_notes: false
           body: |
             ## Veil for macOS
 
             ### Installation
-            1. Download the archive for your architecture:
+            1. Download the archive and `.sha256` checksum for your architecture:
                - `veil-macos-arm64.zip` for Apple Silicon
                - `veil-macos-x86_64.zip` for Intel
-            2. Unzip → drag `veil.app` to `/Applications`
-            3. Launch — sing-box is bundled when available, can be selected locally, or downloaded automatically
+            2. Verify the archive with `shasum -a 256 -c veil-macos-<arch>.zip.sha256`
+            3. Unzip → drag `veil.app` to `/Applications`
+            4. Launch — sing-box is bundled when available, can be selected locally, or downloaded automatically
 
             ### Requirements
             - macOS 13 Ventura or newer
