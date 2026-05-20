@@ -13,6 +13,17 @@ permissions:
   contents: read
 
 jobs:
+  privacy:
+    name: Privacy scan
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run privacy scan
+        run: bash scripts/privacy_scan.sh
+
   swift:
     name: Swift tests
     runs-on: macos-15

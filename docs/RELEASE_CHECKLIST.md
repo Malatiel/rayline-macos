@@ -46,6 +46,7 @@ CI=1 SING_BOX_BINARY=/path/to/sing-box bash build.sh
 ## Privacy and Security
 
 - Run `git diff --check`.
+- Run `bash scripts/privacy_scan.sh`.
 - Review `git status --short`.
 - Review staged changes for personal data, credentials, private keys, logs, and
   machine-specific paths.

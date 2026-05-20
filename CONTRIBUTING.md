@@ -32,11 +32,11 @@ Before opening a pull request, also scan the diff for personal data:
 
 ```bash
 git diff --check
-git grep -n -E 'BEGIN (RSA|OPENSSH|EC|DSA|PRIVATE) KEY|github_pat_|ghp_|sk-|/Users/|password|TOKEN|SECRET'
+bash scripts/privacy_scan.sh
 ```
 
-The pattern intentionally produces false positives for test fixtures and GitHub
-Actions secret names. Review the matches before pushing.
+The scan intentionally allows documented examples in contributor and release
+guidance. Review any reported match before pushing.
 
 ## Pull Request Checklist
 
