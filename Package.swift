@@ -11,6 +11,7 @@ let package = Package(
             exclude: [
                 "ContentView.swift",
                 "Info.plist",
+                "LogScreen.swift",
                 "VeilApp.swift",
                 "build.sh"
             ],

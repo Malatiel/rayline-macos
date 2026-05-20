@@ -111,6 +111,7 @@ swiftc \
     ProfileManager.swift \
     VPNManager.swift \
     ContentView.swift \
+    LogScreen.swift \
     VeilApp.swift \
     -o "$MACOS/veil"
 
