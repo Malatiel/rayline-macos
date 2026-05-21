@@ -3,6 +3,11 @@
 A lightweight macOS VPN client for **VLESS**, **VMess**, **Shadowsocks**, and **Trojan** protocols.
 Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the system SOCKS5 proxy automatically.
 
+Veil's main app is intentionally a native macOS UI around sing-box, not a
+self-written protocol engine. Native protocol experiments, if any, are kept out
+of the production runtime path until they have their own review and release
+criteria.
+
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue)
 ![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-supported-green)
 ![Intel](https://img.shields.io/badge/Intel-supported-green)
@@ -148,7 +153,7 @@ Veil/
 │   ├── ToastManager.swift      # Toast notification state
 │   └── build.sh                # Build script (downloads sing-box, compiles Swift)
 │
-├── src/                        # C++ core (WireGuard client, CLI)
+├── src/                        # Legacy/experimental C++ R&D, not production app runtime
 │   ├── proxy/                  # Proxy URL parser (C++ implementation)
 │   ├── wireguard/              # WireGuard handshake & packet processing
 │   ├── crypto/                 # Curve25519, ChaCha20-Poly1305, BLAKE2s
@@ -167,7 +172,10 @@ Veil/
 └── .github/workflows/release.yml  # CI: builds app and publishes releases
 ```
 
-The Swift app (`App/`) is the only user-facing UI shipped in release archives. The C++ code (`src/`) is a development CLI/core test target for WireGuard-oriented workflows and parser validation. The parser logic is implemented independently in each language, and a shared JSON test suite (`Tests/shared_test_cases.json`) helps keep the two implementations in sync.
+The Swift app (`App/`) and bundled sing-box binary are the production release
+path. The C++ code (`src/`) is retained as legacy/experimental R&D and test
+history, not as the runtime engine for the shipped macOS app. See
+[docs/ROADMAP.md](docs/ROADMAP.md) for the product direction and cleanup plan.
 
 ---
 
@@ -184,7 +192,6 @@ The Swift app (`App/`) is the only user-facing UI shipped in release archives. T
 
 ## Security notes
 
-- **No shell execution in the C++ core**: all external commands (`route`, `ifconfig`, `networksetup`) are invoked via `fork`/`execvp` with argument arrays — no shell is involved, eliminating command-injection surface entirely.
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - **Profile storage**: saved profiles (`~/.veil/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
 - The generated sing-box config file (`~/.veil/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
@@ -212,6 +219,7 @@ For safe support requests, see [SUPPORT.md](SUPPORT.md).
 - [SUPPORT.md](SUPPORT.md) — safe support request guidance.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common local issues.
 - [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) — release process.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — product direction and planned work.
 
 ---
 

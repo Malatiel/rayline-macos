@@ -8,6 +8,14 @@ This project uses semantic versioning where possible:
 - minor releases for backward-compatible features;
 - major releases for breaking changes.
 
+## Unreleased
+
+### Changed
+
+- Documented the product direction as a SwiftUI macOS app backed by sing-box,
+  with existing C++ code treated as legacy/experimental R&D rather than the
+  production runtime path.
+
 ## 1.0.8 - 2026-05-21
 
 ### Added
