@@ -23,6 +23,8 @@ This project uses semantic versioning where possible:
 - Connection error states now show targeted recovery hints.
 - Release checklist and privacy docs now cover artifact verification,
   diagnostics export, and proxy recovery state.
+- GitHub Actions workflows now opt into Node.js 24 and use Node 24-compatible
+  checkout, artifact, and release actions.
 
 ## 1.0.7 - 2026-05-20
 
