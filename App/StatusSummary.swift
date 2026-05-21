@@ -13,6 +13,7 @@ struct StatusSummary {
     let pingMetric: String
     let trafficMetric: String
     let routeSummary: String
+    let recoveryHint: String?
 
     init(
         state: VPNManager.State,
@@ -25,6 +26,7 @@ struct StatusSummary {
     ) {
         self.stateLabel = Self.stateLabel(state, language: language)
         self.statusText = Self.statusText(state, language: language)
+        self.recoveryHint = Self.recoveryHint(state, language: language)
         self.toggleTitle = Self.toggleTitle(state, language: language)
         self.toggleIcon = state.isConnected || state.isConnecting || state.isDisconnecting ? "power" : "play.fill"
         self.isToggleDisabled = state == .disconnecting
@@ -112,6 +114,38 @@ struct StatusSummary {
             return text(ru: "Остановить подключение", en: "Stop connecting", language: language)
         }
         return text(ru: "Подключить", en: "Connect", language: language)
+    }
+
+    private static func recoveryHint(_ state: VPNManager.State, language: AppLanguage) -> String? {
+        guard case .error(let message) = state else { return nil }
+        let lower = message.lowercased()
+
+        if lower.contains("10808") || lower.contains("порт") || lower.contains("port") {
+            return text(
+                ru: "Порт 127.0.0.1:10808 может быть занят. Остановите старый процесс или перезапустите Veil.",
+                en: "Port 127.0.0.1:10808 may be busy. Stop the old process or restart Veil.",
+                language: language
+            )
+        }
+        if lower.contains("sing-box") {
+            return text(
+                ru: "Проверьте выбранный sing-box в настройках или скачайте встроенную версию заново.",
+                en: "Check the selected sing-box in Settings or download the bundled version again.",
+                language: language
+            )
+        }
+        if lower.contains("proxy") || lower.contains("прокси") {
+            return text(
+                ru: "Проверьте системные сетевые настройки macOS и экспортируйте диагностику из лога, если ошибка повторяется.",
+                en: "Check macOS network settings and export diagnostics from the log if the error repeats.",
+                language: language
+            )
+        }
+        return text(
+            ru: "Откройте лог и экспортируйте диагностику, если нужна помощь без передачи секретов.",
+            en: "Open the log and export diagnostics if you need help without sharing secrets.",
+            language: language
+        )
     }
 
     private static func text(ru: String, en: String, language: AppLanguage) -> String {

@@ -8,6 +8,22 @@ This project uses semantic versioning where possible:
 - minor releases for backward-compatible features;
 - major releases for breaking changes.
 
+## Unreleased
+
+### Added
+
+- Local release artifact verifier for ZIP archives, SHA256 files, app metadata,
+  and bundled executables.
+- Startup recovery for saved SOCKS proxy settings after interrupted sessions.
+- Stale Veil-owned sing-box process detection on app launch.
+- Redacted diagnostics export from the log screen.
+
+### Changed
+
+- Connection error states now show targeted recovery hints.
+- Release checklist and privacy docs now cover artifact verification,
+  diagnostics export, and proxy recovery state.
+
 ## 1.0.7 - 2026-05-20
 
 ### Added

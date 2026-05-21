@@ -25,6 +25,8 @@ let package = Package(
                 "ProfilesSummary.swift",
                 "SettingsSummary.swift",
                 "StatusSummary.swift",
+                "LifecycleRecovery.swift",
+                "DiagnosticExporter.swift",
                 "LanguageManager.swift",
                 "VPNManager.swift",
                 "ToastManager.swift",
@@ -48,6 +50,8 @@ let package = Package(
                 "SharedCasesTests.swift",
                 "SettingsSummaryTests.swift",
                 "StatusSummaryTests.swift",
+                "LifecycleRecoveryTests.swift",
+                "DiagnosticExporterTests.swift",
                 "VPNManagerTests.swift"
             ],
             resources: [

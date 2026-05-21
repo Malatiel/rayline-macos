@@ -44,7 +44,7 @@ final class VPNManagerTests: XCTestCase {
     // MARK: - Logging
 
     func testAddLog() {
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         let before = vpn.logs.count
         vpn.addLog("test message")
         XCTAssertEqual(vpn.logs.count, before + 1)
@@ -52,7 +52,7 @@ final class VPNManagerTests: XCTestCase {
     }
 
     func testAddLogTimestamp() {
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         vpn.addLog("hello")
         // Should contain HH:mm:ss prefix
         let log = vpn.logs[0]
@@ -62,7 +62,7 @@ final class VPNManagerTests: XCTestCase {
     }
 
     func testLogCapAt300() {
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         for i in 0..<350 {
             vpn.addLog("line \(i)")
         }
@@ -72,7 +72,7 @@ final class VPNManagerTests: XCTestCase {
     }
 
     func testClearLog() {
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         vpn.addLog("a")
         vpn.addLog("b")
         vpn.clearLog()
@@ -82,7 +82,7 @@ final class VPNManagerTests: XCTestCase {
     // MARK: - Initial state
 
     func testInitialState() {
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         XCTAssertFalse(vpn.state.isConnected)
         XCTAssertFalse(vpn.state.isConnecting)
         XCTAssertNil(vpn.config)
@@ -97,7 +97,7 @@ final class VPNManagerTests: XCTestCase {
         let path = try makeTempSingBox(permissions: 0o755)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         XCTAssertTrue(vpn.setCustomSingBoxPath(path))
         XCTAssertEqual(vpn.customSingBoxPath, path)
         XCTAssertEqual(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey), path)
@@ -108,7 +108,7 @@ final class VPNManagerTests: XCTestCase {
     func testSetCustomSingBoxPathRejectsMissingFile() {
         let path = NSTemporaryDirectory() + "missing-sing-box-\(UUID().uuidString)"
 
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         XCTAssertFalse(vpn.setCustomSingBoxPath(path))
         XCTAssertTrue(vpn.customSingBoxPath.isEmpty)
         XCTAssertNil(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey))
@@ -119,7 +119,7 @@ final class VPNManagerTests: XCTestCase {
         let path = try makeTempSingBox(permissions: 0o644)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         XCTAssertFalse(vpn.setCustomSingBoxPath(path))
         XCTAssertTrue(vpn.customSingBoxPath.isEmpty)
         XCTAssertNil(UserDefaults.standard.string(forKey: VPNManager.customSingBoxPathKey))
@@ -130,7 +130,7 @@ final class VPNManagerTests: XCTestCase {
         let path = try makeTempSingBox(permissions: 0o755)
         defer { try? FileManager.default.removeItem(atPath: path) }
 
-        let vpn = VPNManager()
+        let vpn = VPNManager(performStartupRecovery: false)
         XCTAssertTrue(vpn.setCustomSingBoxPath(path))
 
         vpn.clearCustomSingBoxPath()

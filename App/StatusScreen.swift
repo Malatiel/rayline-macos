@@ -136,6 +136,20 @@ struct StatusScreen: View {
             .animation(.easeOut(duration: 0.14), value: connectPressed)
             .overlay(connectingShimmer)
 
+            if let recoveryHint = summary.recoveryHint {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(recoveryHint)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+            }
+
             HStack(spacing: 14) {
                 statusBadge(
                     title: lang.t("Профиль", "Profile"),

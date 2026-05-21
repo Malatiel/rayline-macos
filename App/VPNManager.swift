@@ -50,7 +50,7 @@ final class VPNManager: ObservableObject {
     nonisolated static let customSingBoxPathKey = "customSingBoxPath"
 
     // Directory where we install sing-box
-    static let installDir: URL = FileManager.default
+    nonisolated static let installDir: URL = FileManager.default
         .homeDirectoryForCurrentUser
         .appendingPathComponent(".veil")
 
@@ -63,6 +63,7 @@ final class VPNManager: ObservableObject {
     private var disconnectTask: Task<Void, Never>?
     private var connectionGeneration: Int = 0
     private var proxySnapshots: [ProxySnapshot]?
+    private let proxySnapshotStore: ProxySnapshotStore
 
     private func writeSecureTextFile(_ text: String, to path: String) throws {
         let data = Data(text.utf8)
@@ -88,7 +89,11 @@ final class VPNManager: ObservableObject {
 
     private var didAutoConnect = false
 
-    init() {
+    init(
+        performStartupRecovery: Bool = true,
+        proxySnapshotStore: ProxySnapshotStore = .default
+    ) {
+        self.proxySnapshotStore = proxySnapshotStore
         killSwitchEnabled = UserDefaults.standard.bool(forKey: "killSwitchEnabled")
         autoConnectEnabled = UserDefaults.standard.bool(forKey: "autoConnect")
         customSingBoxPath = UserDefaults.standard.string(forKey: Self.customSingBoxPathKey) ?? ""
@@ -97,6 +102,11 @@ final class VPNManager: ObservableObject {
             let L = LanguageManager.shared
             addLog(L.t("sing-box не найден — нажмите «Скачать»",
                         "sing-box not found — click «Download»"))
+        }
+        if performStartupRecovery {
+            Task { [weak self] in
+                await self?.recoverPreviousSessionIfNeeded()
+            }
         }
     }
 
@@ -259,10 +269,19 @@ final class VPNManager: ObservableObject {
             enableSystemProxy(port: Self.socksPort)
         }.value
         proxySnapshots = proxyResult.snapshots
+        do {
+            try proxySnapshotStore.save(proxyResult.snapshots)
+        } catch {
+            addLog(L.t("⚠ Не удалось сохранить состояние системного proxy: \(error.localizedDescription)",
+                       "⚠ Failed to save system proxy state: \(error.localizedDescription)"))
+        }
         guard isCurrentConnect(generation) else {
-            _ = await Task.detached(priority: .utility) {
+            let restoreFailures = await Task.detached(priority: .utility) {
                 restoreSystemProxy(proxyResult.snapshots)
             }.value
+            if restoreFailures.isEmpty {
+                proxySnapshotStore.clear()
+            }
             cleanupCancelledConnect(process: proc)
             return
         }
@@ -271,9 +290,12 @@ final class VPNManager: ObservableObject {
             let detail = proxyFailures.joined(separator: "; ")
             addLog(L.t("⚠ Не удалось настроить системный proxy: \(detail)",
                        "⚠ Failed to set system proxy: \(detail)"))
-            _ = await Task.detached(priority: .utility) {
+            let restoreFailures = await Task.detached(priority: .utility) {
                 restoreSystemProxy(proxyResult.snapshots)
             }.value
+            if restoreFailures.isEmpty {
+                proxySnapshotStore.clear()
+            }
             proxySnapshots = nil
             stopProcess()
             stopLogTail()
@@ -317,6 +339,8 @@ final class VPNManager: ObservableObject {
         if !failures.isEmpty {
             addLog(L.t("⚠ Не удалось снять системный proxy: \(failures.joined(separator: "; "))",
                        "⚠ Failed to clear system proxy: \(failures.joined(separator: "; "))"))
+        } else {
+            proxySnapshotStore.clear()
         }
         proxySnapshots = nil
         try? FileManager.default.removeItem(atPath: configPath)
@@ -348,6 +372,7 @@ final class VPNManager: ObservableObject {
             )))
         } else {
             let snapshots = proxySnapshots
+            let snapshotStore = proxySnapshotStore
             proxySnapshots = nil
             Task.detached(priority: .utility) {
                 let failures = restoreSystemProxy(snapshots)
@@ -356,11 +381,52 @@ final class VPNManager: ObservableObject {
                         self?.addLog(L.t("⚠ Не удалось снять proxy: \(failures.joined(separator: "; "))",
                                          "⚠ Failed to clear proxy: \(failures.joined(separator: "; "))"))
                     }
+                } else {
+                    snapshotStore.clear()
                 }
             }
             try? FileManager.default.removeItem(atPath: self.configPath)
             addLog(L.t("Соединение оборвалось", "Connection lost"))
             setState(.error(L.t("Соединение оборвалось", "Connection lost")))
+        }
+    }
+
+    private func recoverPreviousSessionIfNeeded() async {
+        let L = LanguageManager.shared
+        let startupConfigPath = configPath
+        let stoppedProcesses = await Task.detached(priority: .utility) {
+            StaleSingBoxCleaner(configPath: startupConfigPath).terminateStaleProcesses()
+        }.value
+
+        if !stoppedProcesses.isEmpty {
+            addLog(L.t("Остановлен зависший sing-box после предыдущего запуска",
+                       "Stopped stale sing-box from previous run"))
+        }
+
+        let snapshots: [ProxySnapshot]
+        do {
+            snapshots = try proxySnapshotStore.load()
+        } catch {
+            addLog(L.t("⚠ Не удалось прочитать сохранённое состояние proxy: \(error.localizedDescription)",
+                       "⚠ Failed to read saved proxy state: \(error.localizedDescription)"))
+            proxySnapshotStore.clear()
+            return
+        }
+
+        guard !snapshots.isEmpty else { return }
+
+        addLog(L.t("Восстановление системного proxy после предыдущего запуска…",
+                   "Restoring system proxy after previous run…"))
+        let failures = await Task.detached(priority: .utility) {
+            restoreSystemProxy(snapshots)
+        }.value
+        if failures.isEmpty {
+            addLog(L.t("Системный proxy восстановлен", "System proxy restored"))
+            proxySnapshotStore.clear()
+            try? FileManager.default.removeItem(atPath: configPath)
+        } else {
+            addLog(L.t("⚠ Не удалось восстановить proxy: \(failures.joined(separator: "; "))",
+                       "⚠ Failed to restore proxy: \(failures.joined(separator: "; "))"))
         }
     }
 
@@ -721,7 +787,7 @@ enum SingBoxDownloadError: LocalizedError {
 
 // MARK: - System proxy (nonisolated, blocking — run off main thread)
 
-private struct ProxySnapshot: Sendable {
+struct ProxySnapshot: Sendable, Codable, Equatable {
     let service: String
     let enabled: Bool
     let server: String

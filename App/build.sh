@@ -112,6 +112,8 @@ swiftc \
     ProfilesSummary.swift \
     SettingsSummary.swift \
     StatusSummary.swift \
+    LifecycleRecovery.swift \
+    DiagnosticExporter.swift \
     VPNManager.swift \
     SharedViews.swift \
     ContentView.swift \

@@ -4,6 +4,7 @@ import AppKit
 struct LogScreen: View {
     @EnvironmentObject var vpn: VPNManager
     @EnvironmentObject var lang: LanguageManager
+    @EnvironmentObject var profileManager: ProfileManager
     @EnvironmentObject var toastManager: ToastManager
 
     @Binding var logSearchText: String
@@ -59,6 +60,13 @@ struct LogScreen: View {
                     }
                     .buttonStyle(.bordered)
                     .disabled(filteredLogs.isEmpty)
+
+                    Button {
+                        exportDiagnostics()
+                    } label: {
+                        Label(lang.t("Экспорт", "Export"), systemImage: "square.and.arrow.up")
+                    }
+                    .buttonStyle(.bordered)
 
                     Button(lang.t("Очистить", "Clear")) {
                         vpn.clearLog()
@@ -144,5 +152,26 @@ struct LogScreen: View {
             return .orange.opacity(0.85)
         }
         return .secondary
+    }
+
+    private func exportDiagnostics() {
+        let panel = NSSavePanel()
+        panel.title = lang.t("Экспорт диагностики", "Export diagnostics")
+        panel.nameFieldStringValue = "veil-diagnostics.txt"
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            try vpn.exportDiagnostics(to: url, activeProfile: profileManager.activeProfile)
+            toastManager.show(lang.t("Диагностика экспортирована", "Diagnostics exported"), style: .success)
+        } catch {
+            toastManager.show(
+                lang.t("Не удалось экспортировать диагностику: \(error.localizedDescription)",
+                       "Failed to export diagnostics: \(error.localizedDescription)"),
+                style: .error
+            )
+        }
     }
 }

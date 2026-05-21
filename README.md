@@ -20,7 +20,9 @@ Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the syste
 - **Theme switcher** — system, light, or dark appearance
 - **Toast notifications** — on connect, disconnect, error, and clipboard actions
 - **Log filtering** — search by text, filter by level (all / error / warning / info), copy to clipboard
+- **Redacted diagnostics export** — support reports remove proxy links, UUIDs, passwords, emails, and local paths before writing to disk
 - Automatic macOS system SOCKS5 proxy configuration with previous proxy settings restored on disconnect
+- Startup recovery restores saved SOCKS proxy settings and stops stale Veil-owned sing-box processes after crash or force quit
 - Bundled sing-box support, automatic download, or local binary selection from the UI
 - **Supply-chain protection**: sing-box is downloaded from a pinned release with SHA256 checksum verification
 - IPv4 and **IPv6** endpoint support
@@ -93,6 +95,11 @@ ctest --test-dir cmake-build-debug -V
 Pull requests are expected to keep both Swift and C++ tests green. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and privacy review steps.
 For release steps, see [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+Release archives can be checked locally with:
+
+```bash
+EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N scripts/verify_release_artifact.sh release/veil-macos-arm64.zip
+```
 
 The C++ test suite includes:
 
@@ -134,6 +141,8 @@ Veil/
 │   ├── StatusSummary.swift     # Presentation model for connection state
 │   ├── ProfilesSummary.swift   # Presentation model for profile state
 │   ├── SettingsSummary.swift   # Presentation model for settings state
+│   ├── LifecycleRecovery.swift # Startup cleanup after crash or force quit
+│   ├── DiagnosticExporter.swift # Redacted support diagnostics export
 │   ├── LanguageManager.swift   # Bilingual support (RU / EN)
 │   ├── ThemeManager.swift      # System / light / dark appearance
 │   ├── ToastManager.swift      # Toast notification state

@@ -10,6 +10,8 @@ Veil may store the following data on your Mac:
 - proxy profiles in `~/.veil/profiles.json`;
 - generated sing-box configuration in `~/.veil/singbox.json` while connected;
 - sing-box logs in `~/.veil/singbox.log`;
+- previous SOCKS proxy settings in `~/.veil/proxy-state.json` while Veil is
+  connected or recovering after an interrupted session;
 - downloaded sing-box binary in `~/.veil/sing-box`;
 - app preferences in macOS UserDefaults, such as theme, language, auto-connect,
   selected profile id, and custom sing-box path.
@@ -32,6 +34,12 @@ preferences to the project maintainer.
 
 Logs may include server names, ports, sing-box messages, and operational errors.
 Do not share logs publicly without reviewing and redacting sensitive details.
+
+## Diagnostics Export
+
+The app can export a local diagnostics text file from the log screen. The export
+redacts proxy URLs, UUIDs, common secret query parameters, email addresses, and
+local filesystem paths before writing the file with owner-only permissions.
 
 ## Clipboard
 

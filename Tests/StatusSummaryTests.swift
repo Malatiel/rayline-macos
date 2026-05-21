@@ -21,6 +21,7 @@ final class StatusSummaryTests: XCTestCase {
         XCTAssertEqual(summary.routeSummary, "Not set")
         XCTAssertEqual(summary.pingMetric, "—")
         XCTAssertEqual(summary.trafficMetric, "—")
+        XCTAssertNil(summary.recoveryHint)
     }
 
     func testGivenDraftConfigWhenDisconnectedThenConnectActionIsEnabledAndRouteIsVisible() {
@@ -84,6 +85,56 @@ final class StatusSummaryTests: XCTestCase {
         XCTAssertTrue(summary.isConnectionActivityActive)
         XCTAssertEqual(summary.pingMetric, "—")
         XCTAssertEqual(summary.trafficMetric, "—")
+        XCTAssertNil(summary.recoveryHint)
+    }
+
+    func testGivenSingBoxErrorThenRecoveryHintPointsToSettings() {
+        let summary = StatusSummary(
+            state: .error("sing-box not found"),
+            displayConfig: nil,
+            hasLaunchInput: true,
+            pingMs: nil,
+            packetsSent: 0,
+            packetsRecv: 0,
+            language: .en
+        )
+
+        XCTAssertEqual(summary.stateLabel, "sing-box not found")
+        XCTAssertEqual(
+            summary.recoveryHint,
+            "Check the selected sing-box in Settings or download the bundled version again."
+        )
+    }
+
+    func testGivenPortErrorThenRecoveryHintMentionsLocalPort() {
+        let summary = StatusSummary(
+            state: .error("sing-box did not open port 10808 within 5 sec"),
+            displayConfig: nil,
+            hasLaunchInput: true,
+            pingMs: nil,
+            packetsSent: 0,
+            packetsRecv: 0,
+            language: .en
+        )
+
+        XCTAssertTrue(summary.recoveryHint?.contains("127.0.0.1:10808") == true)
+    }
+
+    func testGivenGenericErrorThenRecoveryHintPointsToRedactedDiagnostics() {
+        let summary = StatusSummary(
+            state: .error("connection failed"),
+            displayConfig: nil,
+            hasLaunchInput: true,
+            pingMs: nil,
+            packetsSent: 0,
+            packetsRecv: 0,
+            language: .en
+        )
+
+        XCTAssertEqual(
+            summary.recoveryHint,
+            "Open the log and export diagnostics if you need help without sharing secrets."
+        )
     }
 
     private func makeConfig(name: String, server: String, port: Int) -> ProxyConfig {

@@ -53,6 +53,7 @@ ditto -c -k --keepParent /path/to/Veil.app release/veil-macos-arm64.zip
 cd release
 shasum -a 256 veil-macos-arm64.zip > veil-macos-arm64.zip.sha256
 shasum -a 256 -c veil-macos-arm64.zip.sha256
+EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N ../scripts/verify_release_artifact.sh veil-macos-arm64.zip
 ```
 
 ## Privacy and Security
@@ -84,6 +85,7 @@ The tag push starts the GitHub release workflow.
   architectures.
 - Download the release archives and `.sha256` files.
 - Verify each archive with `shasum -a 256 -c veil-macos-<arch>.zip.sha256`.
+- Run `scripts/verify_release_artifact.sh` against each downloaded archive.
 - Confirm the verified archives unzip cleanly.
 - Launch the app on a test Mac.
 - Open the menu bar window and check import, save profile, settings, logs, and
