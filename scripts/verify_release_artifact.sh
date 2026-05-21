@@ -110,6 +110,6 @@ fi
 
 echo "App: $(basename "$APP_PATH")"
 echo "Version: $VERSION ($BUILD)"
-echo "veil: $("$VEIL_BIN" --version 2>/dev/null || file "$VEIL_BIN")"
+echo "veil: $(file "$VEIL_BIN")"
 echo "sing-box: $("$SING_BOX_BIN" version 2>/dev/null | head -1 || file "$SING_BOX_BIN")"
 echo "Release artifact OK"
