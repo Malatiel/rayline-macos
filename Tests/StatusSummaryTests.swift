@@ -7,6 +7,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .disconnected,
             displayConfig: nil,
             hasLaunchInput: false,
+            hasSingBox: true,
             pingMs: nil,
             packetsSent: 0,
             packetsRecv: 0,
@@ -24,6 +25,65 @@ final class StatusSummaryTests: XCTestCase {
         XCTAssertNil(summary.recoveryHint)
     }
 
+    func testGivenFirstLaunchWithoutSingBoxOrProfileThenSetupStepsAreIncomplete() {
+        let summary = StatusSummary(
+            state: .disconnected,
+            displayConfig: nil,
+            hasLaunchInput: false,
+            hasSingBox: false,
+            pingMs: nil,
+            packetsSent: 0,
+            packetsRecv: 0,
+            language: .en
+        )
+
+        XCTAssertTrue(summary.needsFirstRunSetup)
+        XCTAssertEqual(summary.setupSteps.count, 2)
+        XCTAssertEqual(summary.setupSteps[0].title, "sing-box")
+        XCTAssertEqual(summary.setupSteps[0].status, "Required")
+        XCTAssertFalse(summary.setupSteps[0].isComplete)
+        XCTAssertEqual(summary.setupSteps[1].title, "Profile")
+        XCTAssertEqual(summary.setupSteps[1].status, "Add profile")
+        XCTAssertFalse(summary.setupSteps[1].isComplete)
+        XCTAssertEqual(summary.firstRunTitle, "Finish setup")
+    }
+
+    func testGivenSingBoxReadyWithoutProfileThenOnlyProfileSetupIsIncomplete() {
+        let summary = StatusSummary(
+            state: .disconnected,
+            displayConfig: nil,
+            hasLaunchInput: false,
+            hasSingBox: true,
+            pingMs: nil,
+            packetsSent: 0,
+            packetsRecv: 0,
+            language: .en
+        )
+
+        XCTAssertTrue(summary.needsFirstRunSetup)
+        XCTAssertTrue(summary.setupSteps[0].isComplete)
+        XCTAssertFalse(summary.setupSteps[1].isComplete)
+        XCTAssertEqual(summary.setupSteps[1].detail, "Import or save a proxy profile before connecting")
+    }
+
+    func testGivenProfileReadyWithoutSingBoxThenOnlySingBoxSetupIsIncomplete() {
+        let summary = StatusSummary(
+            state: .disconnected,
+            displayConfig: makeConfig(name: "Demo", server: "edge.example", port: 443),
+            hasLaunchInput: true,
+            hasSingBox: false,
+            pingMs: nil,
+            packetsSent: 0,
+            packetsRecv: 0,
+            language: .ru
+        )
+
+        XCTAssertTrue(summary.needsFirstRunSetup)
+        XCTAssertFalse(summary.setupSteps[0].isComplete)
+        XCTAssertTrue(summary.setupSteps[1].isComplete)
+        XCTAssertEqual(summary.firstRunTitle, "Завершите настройку")
+    }
+
     func testGivenDraftConfigWhenDisconnectedThenConnectActionIsEnabledAndRouteIsVisible() {
         let config = makeConfig(name: "", server: "edge.example", port: 443)
 
@@ -31,6 +91,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .disconnected,
             displayConfig: config,
             hasLaunchInput: true,
+            hasSingBox: true,
             pingMs: nil,
             packetsSent: 0,
             packetsRecv: 0,
@@ -51,6 +112,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .connected,
             displayConfig: config,
             hasLaunchInput: false,
+            hasSingBox: true,
             pingMs: 88,
             packetsSent: 12,
             packetsRecv: 34,
@@ -72,6 +134,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .disconnecting,
             displayConfig: makeConfig(name: "Mobile", server: "mobile.example", port: 443),
             hasLaunchInput: true,
+            hasSingBox: true,
             pingMs: 42,
             packetsSent: 1,
             packetsRecv: 2,
@@ -93,6 +156,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .error("sing-box not found"),
             displayConfig: nil,
             hasLaunchInput: true,
+            hasSingBox: false,
             pingMs: nil,
             packetsSent: 0,
             packetsRecv: 0,
@@ -111,6 +175,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .error("sing-box did not open port 10808 within 5 sec"),
             displayConfig: nil,
             hasLaunchInput: true,
+            hasSingBox: true,
             pingMs: nil,
             packetsSent: 0,
             packetsRecv: 0,
@@ -125,6 +190,7 @@ final class StatusSummaryTests: XCTestCase {
             state: .error("connection failed"),
             displayConfig: nil,
             hasLaunchInput: true,
+            hasSingBox: true,
             pingMs: nil,
             packetsSent: 0,
             packetsRecv: 0,

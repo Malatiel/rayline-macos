@@ -78,6 +78,7 @@ struct ContentView: View {
             state: vpn.state,
             displayConfig: displayConfig,
             hasLaunchInput: hasLaunchInput,
+            hasSingBox: vpn.hasSingBox,
             pingMs: vpn.pingMs,
             packetsSent: vpn.packetsSent,
             packetsRecv: vpn.packetsRecv,
@@ -215,7 +216,11 @@ struct ContentView: View {
                             connectPressed: $connectPressed,
                             shimmerPhase: $shimmerPhase,
                             toggleConnection: toggleConnection,
-                            chooseSingBoxBinary: chooseSingBoxBinary
+                            chooseSingBoxBinary: chooseSingBoxBinary,
+                            openProfiles: {
+                                selectedSection = .profiles
+                                isImportExpanded = true
+                            }
                         )
                     case .profiles:
                         ProfilesScreen(

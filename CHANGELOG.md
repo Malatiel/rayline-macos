@@ -17,6 +17,8 @@ This project uses semantic versioning where possible:
 - Support docs now describe safe redacted diagnostics export.
 - Settings now includes a manual action to reset macOS SOCKS proxy state after
   interrupted sessions.
+- The Status screen now shows a first-run setup checklist for sing-box and
+  profile import.
 
 ## 1.0.9 - 2026-05-21
 

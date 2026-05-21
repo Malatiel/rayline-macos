@@ -58,7 +58,6 @@ backend without that review work.
 
 - Add screenshots and a short demo flow to the README.
 - Improve connection errors with clearer next actions.
-- Improve first-run guidance for selecting or downloading sing-box.
 
 ### v1.2 Profile Management
 

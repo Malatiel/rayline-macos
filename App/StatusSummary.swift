@@ -1,6 +1,13 @@
 import Foundation
 
 struct StatusSummary {
+    struct SetupStep: Equatable {
+        let title: String
+        let status: String
+        let detail: String
+        let isComplete: Bool
+    }
+
     let stateLabel: String
     let statusText: String
     let toggleTitle: String
@@ -14,18 +21,27 @@ struct StatusSummary {
     let trafficMetric: String
     let routeSummary: String
     let recoveryHint: String?
+    let needsFirstRunSetup: Bool
+    let firstRunTitle: String
+    let setupSteps: [SetupStep]
 
     init(
         state: VPNManager.State,
         displayConfig: ProxyConfig?,
         hasLaunchInput: Bool,
+        hasSingBox: Bool,
         pingMs: Int?,
         packetsSent: Int,
         packetsRecv: Int,
         language: AppLanguage
     ) {
         self.stateLabel = Self.stateLabel(state, language: language)
-        self.statusText = Self.statusText(state, language: language)
+        self.statusText = Self.statusText(
+            state,
+            hasLaunchInput: hasLaunchInput,
+            hasSingBox: hasSingBox,
+            language: language
+        )
         self.recoveryHint = Self.recoveryHint(state, language: language)
         self.toggleTitle = Self.toggleTitle(state, language: language)
         self.toggleIcon = state.isConnected || state.isConnecting || state.isDisconnecting ? "power" : "play.fill"
@@ -55,6 +71,46 @@ struct StatusSummary {
         }
 
         self.trafficMetric = state.isConnected ? "↑\(packetsSent)  ↓\(packetsRecv)" : "—"
+        self.needsFirstRunSetup = !hasSingBox || !hasLaunchInput
+        self.firstRunTitle = Self.text(ru: "Завершите настройку", en: "Finish setup", language: language)
+        self.setupSteps = [
+            SetupStep(
+                title: "sing-box",
+                status: hasSingBox
+                    ? Self.text(ru: "Готов", en: "Ready", language: language)
+                    : Self.text(ru: "Требуется", en: "Required", language: language),
+                detail: hasSingBox
+                    ? Self.text(
+                        ru: "Компонент доступен для запуска подключений",
+                        en: "Component is available for starting connections",
+                        language: language
+                    )
+                    : Self.text(
+                        ru: "Скачайте проверенную версию или выберите локальный файл",
+                        en: "Download the verified binary or choose a local file",
+                        language: language
+                    ),
+                isComplete: hasSingBox
+            ),
+            SetupStep(
+                title: Self.text(ru: "Профиль", en: "Profile", language: language),
+                status: hasLaunchInput
+                    ? Self.text(ru: "Готов", en: "Ready", language: language)
+                    : Self.text(ru: "Добавьте профиль", en: "Add profile", language: language),
+                detail: hasLaunchInput
+                    ? Self.text(
+                        ru: "Профиль выбран или ссылка готова к подключению",
+                        en: "A profile is selected or a link is ready to connect",
+                        language: language
+                    )
+                    : Self.text(
+                        ru: "Импортируйте или сохраните proxy-профиль перед подключением",
+                        en: "Import or save a proxy profile before connecting",
+                        language: language
+                    ),
+                isComplete: hasLaunchInput
+            )
+        ]
     }
 
     private static func stateLabel(_ state: VPNManager.State, language: AppLanguage) -> String {
@@ -72,9 +128,21 @@ struct StatusSummary {
         }
     }
 
-    private static func statusText(_ state: VPNManager.State, language: AppLanguage) -> String {
+    private static func statusText(
+        _ state: VPNManager.State,
+        hasLaunchInput: Bool,
+        hasSingBox: Bool,
+        language: AppLanguage
+    ) -> String {
         switch state {
         case .disconnected:
+            if !hasSingBox || !hasLaunchInput {
+                return text(
+                    ru: "Подготовьте sing-box и профиль, затем подключение будет доступно с главного экрана.",
+                    en: "Prepare sing-box and a profile, then connection is available from the main screen.",
+                    language: language
+                )
+            }
             return text(
                 ru: "На экране только главное: состояние туннеля, активный профиль и одна кнопка запуска.",
                 en: "This screen stays focused: tunnel state, active profile, and one launch button.",

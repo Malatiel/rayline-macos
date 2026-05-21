@@ -11,12 +11,14 @@ struct StatusScreen: View {
     @Binding var shimmerPhase: CGFloat
     let toggleConnection: () -> Void
     let chooseSingBoxBinary: () -> Void
+    let openProfiles: () -> Void
 
     private var summary: StatusSummary {
         StatusSummary(
             state: vpn.state,
             displayConfig: displayConfig,
             hasLaunchInput: hasLaunchInput,
+            hasSingBox: vpn.hasSingBox,
             pingMs: vpn.pingMs,
             packetsSent: vpn.packetsSent,
             packetsRecv: vpn.packetsRecv,
@@ -26,8 +28,8 @@ struct StatusScreen: View {
 
     var body: some View {
         DetailSurface {
-            if !vpn.hasSingBox {
-                singBoxBanner
+            if summary.needsFirstRunSetup {
+                firstRunPanel
             }
 
             statusHeroCard
@@ -192,9 +194,9 @@ struct StatusScreen: View {
         }
     }
 
-    private var singBoxBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeaderText(title: lang.t("Требуется компонент", "Component required"), icon: "puzzlepiece")
+    private var firstRunPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeaderText(title: summary.firstRunTitle, icon: "checklist")
 
             if vpn.isDownloading {
                 HStack(spacing: 10) {
@@ -205,41 +207,79 @@ struct StatusScreen: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text(lang.t("VPN-движок не установлен", "VPN engine not installed"))
-                    .font(.system(size: 16, weight: .semibold))
-
-                Text(lang.t(
-                    "sing-box нужен для VLESS, VMess, Shadowsocks и Trojan. Он скачается автоматически и после этого интерфейс останется таким же простым.",
-                    "sing-box is required for VLESS, VMess, Shadowsocks, and Trojan. It will download automatically, then the UI stays just as simple."
-                ))
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-                Button {
-                    Task { await vpn.downloadSingBox() }
-                } label: {
-                    Label(
-                        lang.t("Скачать sing-box", "Download sing-box"),
-                        systemImage: "arrow.down.circle.fill"
-                    )
+                VStack(spacing: 10) {
+                    ForEach(Array(summary.setupSteps.enumerated()), id: \.offset) { _, step in
+                        setupStepRow(step)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
 
-                Button {
-                    chooseSingBoxBinary()
-                } label: {
-                    Label(
-                        lang.t("Выбрать локальный sing-box", "Choose local sing-box"),
-                        systemImage: "folder"
-                    )
+                HStack(spacing: 10) {
+                    if !vpn.hasSingBox {
+                        Button {
+                            Task { await vpn.downloadSingBox() }
+                        } label: {
+                            Label(
+                                lang.t("Скачать", "Download"),
+                                systemImage: "arrow.down.circle.fill"
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+
+                        Button {
+                            chooseSingBoxBinary()
+                        } label: {
+                            Label(
+                                lang.t("Выбрать", "Choose"),
+                                systemImage: "folder"
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if !hasLaunchInput {
+                        Button {
+                            openProfiles()
+                        } label: {
+                            Label(
+                                lang.t("Профили", "Profiles"),
+                                systemImage: "square.stack.3d.up"
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .buttonStyle(.bordered)
             }
         }
         .padding(20)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func setupStepRow(_ step: StatusSummary.SetupStep) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: step.isComplete ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(step.isComplete ? connectedAccent : .orange)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(step.title)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(step.status)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(step.isComplete ? connectedAccent : .orange)
+                }
+
+                Text(step.detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var heroBackground: LinearGradient {

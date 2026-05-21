@@ -29,6 +29,7 @@ criteria.
 - Automatic macOS system SOCKS5 proxy configuration with previous proxy settings restored on disconnect
 - Startup recovery restores saved SOCKS proxy settings and stops stale Veil-owned sing-box processes after crash or force quit
 - Manual SOCKS proxy reset action in Settings for recovery after interrupted sessions
+- First-run checklist for preparing sing-box and adding a profile
 - Bundled sing-box support, automatic download, or local binary selection from the UI
 - **Supply-chain protection**: sing-box is downloaded from a pinned release with SHA256 checksum verification
 - IPv4 and **IPv6** endpoint support
