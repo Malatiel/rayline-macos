@@ -1,5 +1,5 @@
 {
-  "_comment": "Shared proxy parser test cases for C++ and Swift. Both test suites must validate against these URIs to prevent drift between implementations.",
+  "_comment": "Shared proxy parser test cases for Swift. Keep these URI fixtures stable so parser behavior remains reviewable across releases.",
   "parse_tests": [
     {
       "name": "vless_basic_tls",

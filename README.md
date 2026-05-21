@@ -16,7 +16,7 @@ criteria.
 
 ## Features
 
-- **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions); WireGuard configs live in `~/.veil/wireguard/`
+- **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions)
 - **Export / copy link** — reconstruct a shareable proxy URL from any saved profile
 - **Auto-connect** — optionally reconnect to the active profile on app launch
 - Supports **VLESS** (TCP / WS / gRPC / HTTP/2, TLS, REALITY), **VMess**, **Shadowsocks** (SIP002 + legacy), **Trojan**
@@ -90,14 +90,9 @@ SING_BOX_BINARY=/path/to/sing-box bash build.sh
 ```bash
 # Swift tests (proxy parser, profile manager, VPN manager)
 swift test
-
-# C++ tests (proxy parser, config persistence, WireGuard crypto & protocol)
-cmake -B cmake-build-debug
-cmake --build cmake-build-debug
-ctest --test-dir cmake-build-debug -V
 ```
 
-Pull requests are expected to keep both Swift and C++ tests green. See
+Pull requests are expected to keep Swift tests green. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and privacy review steps.
 For release steps, see [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
 Release archives can be checked locally with:
@@ -105,13 +100,6 @@ Release archives can be checked locally with:
 ```bash
 EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N scripts/verify_release_artifact.sh release/veil-macos-arm64.zip
 ```
-
-The C++ test suite includes:
-
-- **test_proxy_parser** — VLESS / VMess / Shadowsocks / Trojan parsing, structural VMess JSON decoding, IPv6, URL encoding, edge cases (malformed brackets, invalid ports, empty URIs), config generation, JSON escaping of control characters
-- **test_config** — config persistence with file-permission validation
-- **test_shared_cases** — cross-validates C++ and Swift parsers against the same JSON test vectors (`Tests/shared_test_cases.json`)
-- **test_wireguard** — BLAKE2s hashing, HKDF key derivation, ChaCha20-Poly1305 AEAD (roundtrip, wrong key, tampered ciphertext, wrong counter), Curve25519 keypair generation and DH, base64 encoding/decoding, nonce construction, Noise replay window (sequential, out-of-order, duplicates, boundary, large jumps, non-mutating pre-auth checks), TAI64N timestamps, protocol struct sizes
 
 ---
 
@@ -153,29 +141,17 @@ Veil/
 │   ├── ToastManager.swift      # Toast notification state
 │   └── build.sh                # Build script (downloads sing-box, compiles Swift)
 │
-├── src/                        # Legacy/experimental C++ R&D, not production app runtime
-│   ├── proxy/                  # Proxy URL parser (C++ implementation)
-│   ├── wireguard/              # WireGuard handshake & packet processing
-│   ├── crypto/                 # Curve25519, ChaCha20-Poly1305, BLAKE2s
-│   ├── tun/                    # TUN interface management
-│   ├── network/                # Route and DNS management
-│   └── main.cpp                # CLI entry point
-│
 ├── Tests/
 │   ├── ProxyParserTests.swift  # Swift XCTests (parser, Codable, toURL round-trip)
-│   ├── test_proxy_parser.cpp   # C++ parser tests (edge cases, config gen)
-│   ├── test_wireguard.cpp      # C++ crypto/protocol tests
-│   ├── test_config.cpp         # Config persistence and file permissions
-│   ├── test_shared_cases.cpp   # C++ runner for shared conformance tests
-│   └── shared_test_cases.json  # Shared test vectors for both parsers
+│   └── shared_test_cases.json  # Parser fixtures
 │
 └── .github/workflows/release.yml  # CI: builds app and publishes releases
 ```
 
 The Swift app (`App/`) and bundled sing-box binary are the production release
-path. The C++ code (`src/`) is retained as legacy/experimental R&D and test
-history, not as the runtime engine for the shipped macOS app. See
-[docs/ROADMAP.md](docs/ROADMAP.md) for the product direction and cleanup plan.
+path. Native protocol experiments are kept outside `main`; the archived C++
+experiment remains available on the `archive-native-cpp-core` branch for
+history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 
 ---
 
@@ -195,11 +171,10 @@ history, not as the runtime engine for the shipped macOS app. See
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - **Profile storage**: saved profiles (`~/.veil/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
 - The generated sing-box config file (`~/.veil/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
-- **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded `std::stoi` conversions, and safe `std::string::compare` for scheme detection. IP addresses and interface names are validated before use.
+- **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded port parsing, and validation for supported proxy URL schemes.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
 - In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.
 - Before enabling the local SOCKS5 proxy, the Swift app snapshots each network service's previous SOCKS proxy state and restores it on disconnect instead of blindly disabling user proxy settings.
-- **Standalone cryptography**: Curve25519, ChaCha20-Poly1305, and BLAKE2s are implemented from scratch with no external dependencies. The implementations are covered by unit tests including AEAD roundtrip, wrong-key rejection, ciphertext tampering detection, and DH shared-secret agreement.
 - Clipboard operations (copy link, copy log) are triggered only by explicit user action.
 
 For vulnerability reporting and supported versions, see [SECURITY.md](SECURITY.md).

@@ -37,12 +37,6 @@ let package = Package(
             name: "VeilTests",
             dependencies: ["VeilCore"],
             path: "Tests",
-            exclude: [
-                "test_config.cpp",
-                "test_proxy_parser.cpp",
-                "test_shared_cases.cpp",
-                "test_wireguard.cpp"
-            ],
             sources: [
                 "ProxyParserTests.swift",
                 "ProfileManagerTests.swift",

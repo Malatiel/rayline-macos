@@ -23,14 +23,6 @@ Run Swift tests:
 swift test
 ```
 
-Run C++ tests:
-
-```bash
-cmake -B cmake-build-debug -DCMAKE_BUILD_TYPE=Release
-cmake --build cmake-build-debug
-ctest --test-dir cmake-build-debug -V
-```
-
 Build the macOS app:
 
 ```bash
@@ -81,7 +73,7 @@ The tag push starts the GitHub release workflow.
 
 ## After Publishing
 
-- Confirm GitHub Actions completed for Swift tests, C++ tests, and both app
+- Confirm GitHub Actions completed for privacy scan, Swift tests, and both app
   architectures.
 - Download the release archives and `.sha256` files.
 - Verify each archive with `shasum -a 256 -c veil-macos-<arch>.zip.sha256`.

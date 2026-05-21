@@ -13,8 +13,9 @@ This project uses semantic versioning where possible:
 ### Changed
 
 - Documented the product direction as a SwiftUI macOS app backed by sing-box,
-  with existing C++ code treated as legacy/experimental R&D rather than the
-  production runtime path.
+  with native protocol experiments kept outside the production runtime path.
+- Archived the legacy C++ native-core experiment on `archive-native-cpp-core`
+  and removed the unused C++ build and test path from `main`.
 
 ## 1.0.8 - 2026-05-21
 

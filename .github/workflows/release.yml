@@ -24,12 +24,6 @@ jobs:
       - name: Swift tests
         run: swift test
 
-      - name: C++ tests
-        run: |
-          cmake -B cmake-build-ci -DCMAKE_BUILD_TYPE=Release
-          cmake --build cmake-build-ci
-          ctest --test-dir cmake-build-ci -V
-
   build:
     name: Build macOS App (${{ matrix.arch }})
     runs-on: macos-15

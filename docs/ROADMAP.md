@@ -33,25 +33,23 @@ clear release process.
 
 ## C++ Code Status
 
-The existing C++ code is not the production runtime path for the macOS app.
-It is retained for now as legacy/experimental R&D and test history.
+The legacy C++ native-core experiment is not the production runtime path for
+the macOS app and has been removed from `main`.
 
-Future options:
+History remains available on the `archive-native-cpp-core` branch. Future
+native-engine work should happen in a fork, separate repository, or explicitly
+scoped branch with its own threat model, tests, benchmarks, and release
+criteria.
 
-- move native-core experiments to a separate branch or repository;
-- migrate useful test vectors or protocol notes into documentation;
-- remove unused C++ source and C++ CI from the main app after an explicit
-  cleanup decision.
-
-Deleting the C++ tree should be handled as a separate change, not mixed into a
-feature or release-preparation commit.
+Do not reintroduce a self-written protocol engine into `main` as a selectable
+backend without that review work.
 
 ## Near-Term Priorities
 
 ### v1.0.x Stability
 
-- Keep release checks green for Swift tests, C++ legacy tests while present,
-  privacy scan, app build, checksums, and release artifact verification.
+- Keep release checks green for Swift tests, privacy scan, app build,
+  checksums, and release artifact verification.
 - Keep sing-box pinned and checksum-verified.
 - Keep diagnostics redacted by default.
 - Keep crash and force-quit recovery focused on restoring system proxy state.

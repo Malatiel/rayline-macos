@@ -37,20 +37,3 @@ jobs:
 
       - name: Run Swift tests
         run: swift test
-
-  cpp:
-    name: C++ tests
-    runs-on: macos-15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Configure CMake
-        run: cmake -B cmake-build-ci -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build cmake-build-ci
-
-      - name: Run C++ tests
-        run: ctest --test-dir cmake-build-ci -V
