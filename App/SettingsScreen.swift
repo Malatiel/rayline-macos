@@ -12,7 +12,8 @@ struct SettingsScreen: View {
         SettingsSummary(
             state: vpn.state,
             customSingBoxPath: vpn.customSingBoxPath,
-            language: lang.language
+            language: lang.language,
+            isResettingSystemProxy: vpn.isResettingSystemProxy
         )
     }
 
@@ -36,13 +37,24 @@ struct SettingsScreen: View {
 
                 SettingsRow(
                     title: lang.t("Системный прокси", "System proxy"),
-                    subtitle: lang.t(
-                        "Включается автоматически во время соединения",
-                        "Turns on automatically while connected"
-                    )
+                    subtitle: summary.proxyResetDescription
                 ) {
-                    Text(summary.systemProxyStatus)
-                        .foregroundStyle(summary.isSystemProxyActive ? connectedAccent : .secondary)
+                    HStack(spacing: 10) {
+                        Text(summary.systemProxyStatus)
+                            .foregroundStyle(summary.isSystemProxyActive ? connectedAccent : .secondary)
+
+                        Button {
+                            vpn.resetSystemProxySettings()
+                        } label: {
+                            Label(summary.proxyResetButtonTitle, systemImage: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!summary.canResetSystemProxy)
+                        .help(lang.t(
+                            "Отключить SOCKS proxy для всех активных сетевых служб",
+                            "Disable SOCKS proxy for all active network services"
+                        ))
+                    }
                 }
             }
 

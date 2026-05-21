@@ -6,8 +6,16 @@ struct SettingsSummary {
     let isSystemProxyActive: Bool
     let singBoxDescription: String
     let languageToggleTitle: String
+    let canResetSystemProxy: Bool
+    let proxyResetButtonTitle: String
+    let proxyResetDescription: String
 
-    init(state: VPNManager.State, customSingBoxPath: String, language: AppLanguage) {
+    init(
+        state: VPNManager.State,
+        customSingBoxPath: String,
+        language: AppLanguage,
+        isResettingSystemProxy: Bool = false
+    ) {
         self.socksEndpoint = "127.0.0.1:\(VPNManager.socksPort)"
         self.isSystemProxyActive = state.isConnected
         self.systemProxyStatus = Self.text(
@@ -23,6 +31,32 @@ struct SettingsSummary {
             )
             : customSingBoxPath
         self.languageToggleTitle = language == .ru ? "EN" : "RU"
+
+        let isConnectionBusy = state.isConnected || state.isConnecting || state.isDisconnecting
+        self.canResetSystemProxy = !isConnectionBusy && !isResettingSystemProxy
+        self.proxyResetButtonTitle = isResettingSystemProxy
+            ? Self.text(ru: "Сброс…", en: "Resetting…", language: language)
+            : Self.text(ru: "Сбросить", en: "Reset", language: language)
+
+        if isResettingSystemProxy {
+            self.proxyResetDescription = Self.text(
+                ru: "Сброс системного SOCKS-прокси выполняется",
+                en: "System SOCKS proxy reset is in progress",
+                language: language
+            )
+        } else if isConnectionBusy {
+            self.proxyResetDescription = Self.text(
+                ru: "Отключитесь перед сбросом системного proxy",
+                en: "Disconnect before resetting system proxy settings",
+                language: language
+            )
+        } else {
+            self.proxyResetDescription = Self.text(
+                ru: "Отключить SOCKS proxy для всех активных сетевых служб",
+                en: "Disable SOCKS proxy for all active network services",
+                language: language
+            )
+        }
     }
 
     private static func text(ru: String, en: String, language: AppLanguage) -> String {

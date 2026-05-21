@@ -5,12 +5,11 @@
 ## Testing
 
 - [ ] `swift test`
-- [ ] `cmake -B cmake-build-debug`
-- [ ] `cmake --build cmake-build-debug`
-- [ ] `ctest --test-dir cmake-build-debug -V`
+- [ ] `bash scripts/privacy_scan.sh`
+- [ ] Release artifact verifier, if packaging changed
 
 ## Privacy and Security
 
-- [ ] No real proxy links, credentials, keys, certificates, logs, or personal paths
+- [ ] No real proxy links, UUIDs, passwords, private keys, certificates, raw logs, or personal paths
 - [ ] Security-sensitive behavior is documented
 - [ ] Generated config/profile permissions are preserved where relevant

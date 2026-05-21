@@ -7,13 +7,16 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. Do not paste real proxy links, passwords,
-        private keys, Apple signing credentials, or unredacted logs.
+        Thanks for reporting a bug.
+
+        Do not paste real proxy links, UUIDs, passwords, private keys, Apple
+        signing credentials, local filesystem paths, or raw logs. Use the
+        redacted diagnostics export from Veil's Log tab when possible.
   - type: input
     id: version
     attributes:
       label: Veil version
-      placeholder: "1.0.6"
+      placeholder: "1.0.9"
     validations:
       required: true
   - type: input
@@ -72,13 +75,13 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Redacted logs
-      description: Remove credentials, UUIDs, keys, and private server details.
+      label: Redacted diagnostics or logs
+      description: Prefer Veil's diagnostics export. Review it before attaching anything.
       render: text
   - type: checkboxes
     id: privacy
     attributes:
       label: Privacy check
       options:
-        - label: I removed real proxy links, credentials, keys, certificates, and personal logs.
+        - label: I removed real proxy links, UUIDs, passwords, keys, certificates, raw logs, local paths, and private server details.
           required: true

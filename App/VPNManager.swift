@@ -30,6 +30,7 @@ final class VPNManager: ObservableObject {
     @Published var hasSingBox:     Bool     = false
     @Published var isDownloading:  Bool     = false
     @Published var downloadStatus: String   = ""
+    @Published private(set) var isResettingSystemProxy: Bool = false
     @Published private(set) var customSingBoxPath: String = ""
 
     @Published var pingMs:      Int? = nil
@@ -715,6 +716,40 @@ final class VPNManager: ObservableObject {
 
     func clearLog() { logs.removeAll() }
 
+    func resetSystemProxySettings() {
+        let L = LanguageManager.shared
+        guard !state.isConnected, !state.isConnecting, !state.isDisconnecting else {
+            addLog(L.t("Сначала отключитесь, затем сбросьте системный proxy",
+                       "Disconnect before resetting system proxy settings"))
+            return
+        }
+        guard !isResettingSystemProxy else { return }
+
+        isResettingSystemProxy = true
+        addLog(L.t("Сброс системного SOCKS proxy…",
+                   "Resetting system SOCKS proxy…"))
+
+        Task { [weak self] in
+            let failures = await Task.detached(priority: .utility) {
+                disableSystemProxyForAllServices()
+            }.value
+
+            guard let self else { return }
+            self.isResettingSystemProxy = false
+            if failures.isEmpty {
+                self.proxySnapshots = nil
+                self.proxySnapshotStore.clear()
+                self.addLog(L.t("Системный SOCKS proxy сброшен",
+                                "System SOCKS proxy reset"))
+            } else {
+                self.addLog(L.t("⚠ Не удалось сбросить системный proxy: \(failures.joined(separator: "; "))",
+                                "⚠ Failed to reset system proxy: \(failures.joined(separator: "; "))"))
+                self.setState(.error(L.t("Не удалось сбросить системный proxy",
+                                         "Failed to reset system proxy")))
+            }
+        }
+    }
+
     @discardableResult
     func setCustomSingBoxPath(_ path: String) -> Bool {
         let L = LanguageManager.shared
@@ -919,6 +954,17 @@ private func restoreSystemProxy(_ snapshots: [ProxySnapshot]?) -> [String] {
             if s != 0 {
                 failures.append("\(snapshot.service): \(e)")
             }
+        }
+    }
+    return failures
+}
+
+private func disableSystemProxyForAllServices() -> [String] {
+    var failures: [String] = []
+    for service in allNetworkServices() {
+        let (status, error) = networkSetup(["-setsocksfirewallproxystate", service, "off"])
+        if status != 0 {
+            failures.append("\(service): \(error)")
         }
     }
     return failures

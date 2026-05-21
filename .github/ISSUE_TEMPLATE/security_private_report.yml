@@ -1,0 +1,23 @@
+name: Security/private report notice
+description: Read this before sharing security issues or private data
+title: "[Private]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not submit public issues that contain vulnerability details, real
+        proxy links, UUIDs, passwords, private keys, Apple signing credentials,
+        local filesystem paths, or raw logs.
+
+        For vulnerabilities, use GitHub's private advisory flow:
+        https://github.com/Malatiel/veilVPN/security/advisories/new
+
+        For ordinary support, export redacted diagnostics from Veil's Log tab
+        and review the file before attaching it.
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: Acknowledgement
+      options:
+        - label: I understand this public issue form must not include secrets, vulnerability details, proxy links, UUIDs, passwords, or raw logs.
+          required: true

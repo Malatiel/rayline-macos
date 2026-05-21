@@ -57,9 +57,6 @@ backend without that review work.
 ### v1.1 User Experience
 
 - Add screenshots and a short demo flow to the README.
-- Add issue templates with warnings not to paste proxy URLs, UUIDs, passwords,
-  or raw logs.
-- Add a Settings action to reset macOS SOCKS proxy settings.
 - Improve connection errors with clearer next actions.
 - Improve first-run guidance for selecting or downloading sing-box.
 

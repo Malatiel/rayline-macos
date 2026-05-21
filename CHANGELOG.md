@@ -10,6 +10,14 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
+### Added
+
+- GitHub issue templates now warn users not to paste proxy links, UUIDs,
+  passwords, local paths, or raw logs.
+- Support docs now describe safe redacted diagnostics export.
+- Settings now includes a manual action to reset macOS SOCKS proxy state after
+  interrupted sessions.
+
 ## 1.0.9 - 2026-05-21
 
 ### Changed

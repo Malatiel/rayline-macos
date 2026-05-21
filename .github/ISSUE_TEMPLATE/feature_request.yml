@@ -4,6 +4,11 @@ title: "[Feature]: "
 labels:
   - enhancement
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Please keep examples synthetic. Do not include real proxy links, UUIDs,
+        passwords, private keys, personal paths, or raw logs.
   - type: textarea
     id: problem
     attributes:
@@ -42,5 +47,5 @@ body:
     attributes:
       label: Privacy check
       options:
-        - label: This request does not include real proxy links, credentials, keys, certificates, or personal logs.
+        - label: This request does not include real proxy links, UUIDs, passwords, keys, certificates, personal paths, or raw logs.
           required: true

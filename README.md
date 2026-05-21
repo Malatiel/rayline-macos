@@ -28,6 +28,7 @@ criteria.
 - **Redacted diagnostics export** — support reports remove proxy links, UUIDs, passwords, emails, and local paths before writing to disk
 - Automatic macOS system SOCKS5 proxy configuration with previous proxy settings restored on disconnect
 - Startup recovery restores saved SOCKS proxy settings and stops stale Veil-owned sing-box processes after crash or force quit
+- Manual SOCKS proxy reset action in Settings for recovery after interrupted sessions
 - Bundled sing-box support, automatic download, or local binary selection from the UI
 - **Supply-chain protection**: sing-box is downloaded from a pinned release with SHA256 checksum verification
 - IPv4 and **IPv6** endpoint support

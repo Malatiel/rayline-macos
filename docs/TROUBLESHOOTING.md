@@ -40,8 +40,9 @@ Veil snapshots SOCKS proxy settings before connecting and restores them on
 disconnect. If the app or sing-box exits unexpectedly:
 
 1. Reopen Veil and disconnect if it still shows an active state.
-2. Check macOS network proxy settings manually.
-3. If Proxy Guard was enabled, the SOCKS proxy may intentionally remain active
+2. Open Settings in Veil and use **Reset** next to System proxy.
+3. Check macOS network proxy settings manually.
+4. If Proxy Guard was enabled, the SOCKS proxy may intentionally remain active
    until you reconnect or disconnect.
 
 ## Logs Contain Sensitive Data

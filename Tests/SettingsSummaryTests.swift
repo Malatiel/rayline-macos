@@ -41,4 +41,40 @@ final class SettingsSummaryTests: XCTestCase {
         XCTAssertEqual(summary.systemProxyStatus, "Inactive")
         XCTAssertFalse(summary.isSystemProxyActive)
     }
+
+    func testGivenDisconnectedVPNWhenSummaryIsBuiltThenProxyResetIsAvailable() {
+        let summary = SettingsSummary(
+            state: .disconnected,
+            customSingBoxPath: "",
+            language: .en
+        )
+
+        XCTAssertTrue(summary.canResetSystemProxy)
+        XCTAssertEqual(summary.proxyResetButtonTitle, "Reset")
+        XCTAssertEqual(summary.proxyResetDescription, "Disable SOCKS proxy for all active network services")
+    }
+
+    func testGivenConnectedVPNWhenSummaryIsBuiltThenProxyResetIsLocked() {
+        let summary = SettingsSummary(
+            state: .connected,
+            customSingBoxPath: "",
+            language: .en
+        )
+
+        XCTAssertFalse(summary.canResetSystemProxy)
+        XCTAssertEqual(summary.proxyResetDescription, "Disconnect before resetting system proxy settings")
+    }
+
+    func testGivenProxyResetInProgressWhenSummaryIsBuiltThenActionShowsProgress() {
+        let summary = SettingsSummary(
+            state: .error("Proxy Guard: connection lost"),
+            customSingBoxPath: "",
+            language: .ru,
+            isResettingSystemProxy: true
+        )
+
+        XCTAssertFalse(summary.canResetSystemProxy)
+        XCTAssertEqual(summary.proxyResetButtonTitle, "Сброс…")
+        XCTAssertEqual(summary.proxyResetDescription, "Сброс системного SOCKS-прокси выполняется")
+    }
 }
