@@ -8,7 +8,7 @@ This project uses semantic versioning where possible:
 - minor releases for backward-compatible features;
 - major releases for breaking changes.
 
-## Unreleased
+## 1.0.8 - 2026-05-21
 
 ### Added
 
