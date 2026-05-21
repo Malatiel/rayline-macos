@@ -10,6 +10,8 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
+## 1.0.9 - 2026-05-21
+
 ### Changed
 
 - Documented the product direction as a SwiftUI macOS app backed by sing-box,
