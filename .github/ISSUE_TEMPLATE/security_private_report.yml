@@ -10,9 +10,9 @@ body:
         local filesystem paths, or raw logs.
 
         For vulnerabilities, use GitHub's private advisory flow:
-        https://github.com/Malatiel/veilVPN/security/advisories/new
+        https://github.com/Malatiel/raylineVPN/security/advisories/new
 
-        For ordinary support, export redacted diagnostics from Veil's Log tab
+        For ordinary support, export redacted diagnostics from Rayline's Log tab
         and review the file before attaching it.
   - type: checkboxes
     id: acknowledgement

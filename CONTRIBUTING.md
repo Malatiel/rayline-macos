@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping make Veil safer and more useful.
+Thanks for helping make Rayline safer and more useful.
 
 ## Ground Rules
 

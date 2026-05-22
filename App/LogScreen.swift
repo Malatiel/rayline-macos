@@ -157,7 +157,7 @@ struct LogScreen: View {
     private func exportDiagnostics() {
         let panel = NSSavePanel()
         panel.title = lang.t("Экспорт диагностики", "Export diagnostics")
-        panel.nameFieldStringValue = "veil-diagnostics.txt"
+        panel.nameFieldStringValue = "rayline-diagnostics.txt"
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
 

@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 @MainActor
 final class SubscriptionManagerTests: XCTestCase {
@@ -8,7 +8,7 @@ final class SubscriptionManagerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("veil-subscriptions-test-\(UUID().uuidString)")
+            .appendingPathComponent("rayline-subscriptions-test-\(UUID().uuidString)")
         UserDefaults.standard.removeObject(forKey: "activeProfileId")
     }
 

@@ -1,6 +1,6 @@
 # Security Policy
 
-Veil is a local macOS proxy/VPN client. It handles proxy credentials, generated
+Rayline is a local macOS proxy/VPN client. It handles proxy credentials, generated
 sing-box configuration files, system proxy settings, and network traffic routing.
 Please treat security reports as sensitive.
 
@@ -19,9 +19,9 @@ share only the minimum information needed to establish a private channel.
 
 Useful report details:
 
-- affected Veil version or commit;
+- affected Rayline version or commit;
 - macOS version and CPU architecture;
-- whether sing-box was bundled, downloaded by Veil, or selected manually;
+- whether sing-box was bundled, downloaded by Rayline, or selected manually;
 - reproduction steps with test credentials only;
 - expected and actual impact.
 
@@ -30,7 +30,7 @@ personal network names, or logs containing credentials.
 
 ## Security Boundaries
 
-Veil aims to:
+Rayline aims to:
 
 - store local profiles and generated sing-box config files with owner-only
   permissions;
@@ -38,7 +38,7 @@ Veil aims to:
 - verify downloaded sing-box archives against pinned SHA256 checksums;
 - restore previous macOS SOCKS proxy settings when disconnecting.
 
-Veil does not claim to provide anonymity guarantees, censorship-resistance
+Rayline does not claim to provide anonymity guarantees, censorship-resistance
 guarantees, malware protection, or audited cryptographic implementations.
 
 ## Dependency Updates

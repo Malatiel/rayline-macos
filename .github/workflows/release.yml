@@ -49,8 +49,8 @@ jobs:
       - name: Prepare paths
         run: |
           mkdir -p dist
-          echo "APP_PATH=$GITHUB_WORKSPACE/dist/Veil-${{ matrix.arch }}.app" >> "$GITHUB_ENV"
-          echo "ZIP_PATH=$GITHUB_WORKSPACE/dist/veil-macos-${{ matrix.arch }}.zip" >> "$GITHUB_ENV"
+          echo "APP_PATH=$GITHUB_WORKSPACE/dist/Rayline.app" >> "$GITHUB_ENV"
+          echo "ZIP_PATH=$GITHUB_WORKSPACE/dist/rayline-macos-${{ matrix.arch }}.zip" >> "$GITHUB_ENV"
 
       - name: Import Developer ID certificate
         if: ${{ env.APPLE_CERT_BASE64 != '' && env.APPLE_CERT_PASSWORD != '' && env.APPLE_SIGNING_IDENTITY != '' }}
@@ -67,7 +67,7 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-      - name: Build veil.app
+      - name: Build Rayline.app
         run: |
           cd App
           BUILD_ARCH=${{ matrix.arch }} \
@@ -77,9 +77,9 @@ jobs:
 
       - name: Verify binary
         run: |
-          ls -lh "$APP_PATH/Contents/MacOS/veil"
-          file "$APP_PATH/Contents/MacOS/veil"
-          lipo -archs "$APP_PATH/Contents/MacOS/veil"
+          ls -lh "$APP_PATH/Contents/MacOS/rayline"
+          file "$APP_PATH/Contents/MacOS/rayline"
+          lipo -archs "$APP_PATH/Contents/MacOS/rayline"
 
       - name: Create ZIP
         run: |
@@ -95,11 +95,11 @@ jobs:
       - name: Notarize and staple
         if: ${{ env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != '' && env.APPLE_SIGNING_IDENTITY != '' }}
         run: |
-          xcrun notarytool store-credentials "veil-notary" \
+          xcrun notarytool store-credentials "rayline-notary" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID"
-          xcrun notarytool submit "$ZIP_PATH" --keychain-profile "veil-notary" --wait
+          xcrun notarytool submit "$ZIP_PATH" --keychain-profile "rayline-notary" --wait
           xcrun stapler staple "$APP_PATH"
           rm -f "$ZIP_PATH"
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
@@ -109,7 +109,7 @@ jobs:
       - name: Upload artifact (для каждого коммита)
         uses: actions/upload-artifact@v7
         with:
-          name: veil-macos-${{ matrix.arch }}
+          name: rayline-macos-${{ matrix.arch }}
           path: |
             ${{ env.ZIP_PATH }}
             ${{ env.ZIP_PATH }}.sha256
@@ -141,14 +141,14 @@ jobs:
             release/*.sha256
           generate_release_notes: false
           body: |
-            ## Veil for macOS
+            ## Rayline for macOS
 
             ### Installation
             1. Download the archive and `.sha256` checksum for your architecture:
-               - `veil-macos-arm64.zip` for Apple Silicon
-               - `veil-macos-x86_64.zip` for Intel
-            2. Verify the archive with `shasum -a 256 -c veil-macos-<arch>.zip.sha256`
-            3. Unzip → drag `veil.app` to `/Applications`
+               - `rayline-macos-arm64.zip` for Apple Silicon
+               - `rayline-macos-x86_64.zip` for Intel
+            2. Verify the archive with `shasum -a 256 -c rayline-macos-<arch>.zip.sha256`
+            3. Unzip → drag `Rayline.app` to `/Applications`
             4. Launch — sing-box is bundled when available, can be selected locally, or downloaded automatically
 
             ### Requirements

@@ -51,9 +51,7 @@ final class VPNManager: ObservableObject {
     nonisolated static let customSingBoxPathKey = "customSingBoxPath"
 
     // Directory where we install sing-box
-    nonisolated static let installDir: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".veil")
+    nonisolated static let installDir: URL = AppPaths.defaultDataDir
 
     private let configPath = VPNManager.installDir.appendingPathComponent("singbox.json").path
     private var process: Process?
@@ -784,7 +782,7 @@ final class VPNManager: ObservableObject {
         let bundledInApp = Bundle.main.bundlePath + "/Contents/MacOS/sing-box"
         // 2. User-selected local binary
         let selected = customSingBoxPath
-        // 3. Previously downloaded to ~/.veil/
+        // 3. Previously downloaded to Rayline's local data directory.
         let downloaded = Self.installDir.appendingPathComponent("sing-box").path
         // 4. System-wide installs
         let candidates = [bundledInApp, selected, downloaded,

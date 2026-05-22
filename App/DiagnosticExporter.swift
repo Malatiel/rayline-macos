@@ -64,7 +64,7 @@ struct DiagnosticExporter {
     ) -> String {
         let formatter = ISO8601DateFormatter()
         var lines: [String] = [
-            "Veil Diagnostics",
+            "Rayline Diagnostics",
             "Generated: \(formatter.string(from: now))",
             "App: \(appVersion) (\(build))",
             "State: \(state)",

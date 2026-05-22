@@ -10,7 +10,12 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
-No unreleased changes yet.
+### Changed
+
+- Renamed the project and macOS app from Veil to Rayline.
+- Release archives are now named `rayline-macos-<arch>.zip`.
+- New installations use `~/.rayline` for local data while retaining legacy
+  `~/.veil` compatibility when the new directory is not present.
 
 ## 1.1.0-rc.1 - 2026-05-22
 
@@ -55,7 +60,7 @@ No unreleased changes yet.
 - Local release artifact verifier for ZIP archives, SHA256 files, app metadata,
   and bundled executables.
 - Startup recovery for saved SOCKS proxy settings after interrupted sessions.
-- Stale Veil-owned sing-box process detection on app launch.
+- Stale Rayline-owned sing-box process detection on app launch.
 - Redacted diagnostics export from the log screen.
 
 ### Changed

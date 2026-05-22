@@ -302,7 +302,7 @@ struct ContentView: View {
     private var detailHeader: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Veil")
+                Text("Rayline")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                 Text(sectionTitle(selectedSection))
                     .font(.system(size: 12))

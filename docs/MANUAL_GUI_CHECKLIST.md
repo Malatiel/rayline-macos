@@ -6,7 +6,7 @@ available. Run it from a clean temporary profile set when possible.
 ## Setup
 
 - Build or download the app version under test.
-- Quit any running Veil instance.
+- Quit any running Rayline instance.
 - Keep real proxy links, subscription URLs, UUIDs, passwords, and raw logs out
   of screenshots and issue comments.
 - Prefer synthetic profiles or a test subscription. If you must use a real
@@ -15,7 +15,7 @@ available. Run it from a clean temporary profile set when possible.
 
 ## First Run
 
-- Launch Veil.
+- Launch Rayline.
 - Confirm the menu bar window opens.
 - Confirm the first-run checklist is visible when sing-box or profiles are
   missing.

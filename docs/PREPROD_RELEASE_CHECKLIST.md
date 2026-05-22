@@ -47,11 +47,11 @@ Create a local archive and checksum:
 
 ```bash
 mkdir -p release
-ditto -c -k --keepParent /path/to/Veil.app release/veil-macos-arm64.zip
+ditto -c -k --keepParent /path/to/Rayline.app release/rayline-macos-arm64.zip
 cd release
-shasum -a 256 veil-macos-arm64.zip > veil-macos-arm64.zip.sha256
-shasum -a 256 -c veil-macos-arm64.zip.sha256
-EXPECTED_VERSION=1.1.0 EXPECTED_BUILD=10 ../scripts/verify_release_artifact.sh veil-macos-arm64.zip
+shasum -a 256 rayline-macos-arm64.zip > rayline-macos-arm64.zip.sha256
+shasum -a 256 -c rayline-macos-arm64.zip.sha256
+EXPECTED_VERSION=1.1.0 EXPECTED_BUILD=10 ../scripts/verify_release_artifact.sh rayline-macos-arm64.zip
 ```
 
 Do not commit local `release/` artifacts.
@@ -74,10 +74,10 @@ After pushing the release-candidate tag:
 - Confirm release publishing succeeds.
 - Confirm no Node.js runtime deprecation warnings appear.
 - Download all release assets:
-  - `veil-macos-arm64.zip`
-  - `veil-macos-arm64.zip.sha256`
-  - `veil-macos-x86_64.zip`
-  - `veil-macos-x86_64.zip.sha256`
+  - `rayline-macos-arm64.zip`
+  - `rayline-macos-arm64.zip.sha256`
+  - `rayline-macos-x86_64.zip`
+  - `rayline-macos-x86_64.zip.sha256`
 - Verify both checksums locally.
 - Run `scripts/verify_release_artifact.sh` for both archives.
 

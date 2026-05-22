@@ -8,9 +8,13 @@ build/
 
 # ── Generated app bundle ──────────────────────────────────────────────────────
 # Built by App/build.sh / CI — not source, contains downloaded sing-box binary
+Rayline.app/
+rayline.app/
 veil.app/
 dist/
 release/
+rayline-macos.zip
+rayline-macos-*.zip
 veil-macos.zip
 veil-macos-*.zip
 
@@ -18,8 +22,8 @@ veil-macos-*.zip
 .claude/
 
 # ── Runtime / temp files ──────────────────────────────────────────────────────
-/tmp/veil_singbox.json
-/tmp/veil_singbox.log
+/tmp/rayline_singbox.json
+/tmp/rayline_singbox.log
 
 # ── IDE ───────────────────────────────────────────────────────────────────────
 .idea/

@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible Veil problem
+description: Report a reproducible Rayline problem
 title: "[Bug]: "
 labels:
   - bug
@@ -11,11 +11,11 @@ body:
 
         Do not paste real proxy links, UUIDs, passwords, private keys, Apple
         signing credentials, local filesystem paths, or raw logs. Use the
-        redacted diagnostics export from Veil's Log tab when possible.
+        redacted diagnostics export from Rayline's Log tab when possible.
   - type: input
     id: version
     attributes:
-      label: Veil version
+      label: Rayline version
       placeholder: "1.0.9"
     validations:
       required: true
@@ -44,7 +44,7 @@ body:
       label: sing-box source
       options:
         - Bundled
-        - Downloaded by Veil
+        - Downloaded by Rayline
         - Selected local executable
         - Not sure
     validations:
@@ -55,7 +55,7 @@ body:
       label: Steps to reproduce
       description: Use test credentials or redact sensitive values.
       placeholder: |
-        1. Open Veil
+        1. Open Rayline
         2. Import a redacted profile
         3. Click Connect
     validations:
@@ -76,7 +76,7 @@ body:
     id: logs
     attributes:
       label: Redacted diagnostics or logs
-      description: Prefer Veil's diagnostics export. Review it before attaching anything.
+      description: Prefer Rayline's diagnostics export. Review it before attaching anything.
       render: text
   - type: checkboxes
     id: privacy

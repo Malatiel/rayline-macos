@@ -1,10 +1,10 @@
 # Roadmap
 
-This roadmap fixes the product direction for the main Veil application.
+This roadmap fixes the product direction for the main Rayline application.
 
 ## Product Direction
 
-Veil is a lightweight macOS client built around a SwiftUI menu bar app and the
+Rayline is a lightweight macOS client built around a SwiftUI menu bar app and the
 sing-box runtime.
 
 The main product goal is not to replace sing-box with a self-written protocol
@@ -18,7 +18,7 @@ clear release process.
   system integration.
 - sing-box is the production protocol backend for VLESS, VMess, Shadowsocks,
   and Trojan.
-- Veil generates sing-box configuration, launches sing-box, tails logs, and
+- Rayline generates sing-box configuration, launches sing-box, tails logs, and
   manages macOS SOCKS proxy settings.
 - Release builds ship the app bundle and the pinned sing-box binary.
 
@@ -80,7 +80,7 @@ backend without that review work.
 
 ## Native Engine Fork Option
 
-If Veil later needs a native protocol engine without sing-box, that work should
+If Rayline later needs a native protocol engine without sing-box, that work should
 start as a fork, separate branch, or separate repository with its own threat
 model, tests, benchmarks, and release criteria.
 

@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 final class SettingsSummaryTests: XCTestCase {
     func testGivenConnectedVPNWhenSummaryIsBuiltInEnglishThenSystemProxyReadsActive() {
@@ -30,7 +30,7 @@ final class SettingsSummaryTests: XCTestCase {
     }
 
     func testGivenCustomSingBoxPathWhenSummaryIsBuiltThenItShowsTheExactPath() {
-        let path = "/tmp/veil-test/sing-box"
+        let path = "/tmp/rayline-test/sing-box"
         let summary = SettingsSummary(
             state: .error("network failed"),
             customSingBoxPath: path,

@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "veil",
+    name: "rayline",
     platforms: [.macOS(.v13)],
     targets: [
         .target(
-            name: "VeilCore",
+            name: "RaylineCore",
             path: "App",
             exclude: [
                 "ContentView.swift",
@@ -16,10 +16,11 @@ let package = Package(
                 "SettingsScreen.swift",
                 "SharedViews.swift",
                 "StatusScreen.swift",
-                "VeilApp.swift",
+                "RaylineApp.swift",
                 "build.sh"
             ],
             sources: [
+                "AppPaths.swift",
                 "ProxyParser.swift",
                 "ProfileImportParser.swift",
                 "ProfileManager.swift",
@@ -36,8 +37,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "VeilTests",
-            dependencies: ["VeilCore"],
+            name: "RaylineTests",
+            dependencies: ["RaylineCore"],
             path: "Tests",
             sources: [
                 "ProxyParserTests.swift",
@@ -50,6 +51,7 @@ let package = Package(
                 "StatusSummaryTests.swift",
                 "LifecycleRecoveryTests.swift",
                 "DiagnosticExporterTests.swift",
+                "AppPathsTests.swift",
                 "VPNManagerTests.swift"
             ],
             resources: [

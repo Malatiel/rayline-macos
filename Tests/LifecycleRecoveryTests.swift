@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 final class LifecycleRecoveryTests: XCTestCase {
     func testGivenSavedProxySnapshotsWhenStoreReloadsThenRoundTripPreservesValues() throws {
@@ -31,22 +31,22 @@ final class LifecycleRecoveryTests: XCTestCase {
         XCTAssertEqual(try store.load(), [])
     }
 
-    func testGivenSingBoxRunCommandForVeilConfigThenPolicyTerminatesIt() {
-        let configPath = userPath(".veil/singbox.json")
-        let command = "/Applications/Veil.app/Contents/MacOS/sing-box run -c \(configPath)"
+    func testGivenSingBoxRunCommandForRaylineConfigThenPolicyTerminatesIt() {
+        let configPath = userPath(".rayline/singbox.json")
+        let command = "/Applications/Rayline.app/Contents/MacOS/sing-box run -c \(configPath)"
 
         XCTAssertTrue(StaleSingBoxPolicy.shouldTerminate(commandLine: command, configPath: configPath))
     }
 
     func testGivenSingBoxForAnotherConfigThenPolicyLeavesItAlone() {
-        let configPath = userPath(".veil/singbox.json")
+        let configPath = userPath(".rayline/singbox.json")
         let command = "/opt/homebrew/bin/sing-box run -c \(userPath("other/config.json"))"
 
         XCTAssertFalse(StaleSingBoxPolicy.shouldTerminate(commandLine: command, configPath: configPath))
     }
 
     func testGivenNonSingBoxCommandContainingConfigPathThenPolicyLeavesItAlone() {
-        let configPath = userPath(".veil/singbox.json")
+        let configPath = userPath(".rayline/singbox.json")
         let command = "/bin/cat \(configPath)"
 
         XCTAssertFalse(StaleSingBoxPolicy.shouldTerminate(commandLine: command, configPath: configPath))
@@ -54,7 +54,7 @@ final class LifecycleRecoveryTests: XCTestCase {
 
     private func makeTempDir() -> URL {
         FileManager.default.temporaryDirectory
-            .appendingPathComponent("veil-lifecycle-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("rayline-lifecycle-\(UUID().uuidString)", isDirectory: true)
     }
 
     private func userPath(_ suffix: String) -> String {

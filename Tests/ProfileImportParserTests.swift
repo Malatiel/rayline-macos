@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 @MainActor
 final class ProfileImportParserTests: XCTestCase {
@@ -8,7 +8,7 @@ final class ProfileImportParserTests: XCTestCase {
     override func setUp() {
         super.setUp()
         tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("veil-import-test-\(UUID().uuidString)")
+            .appendingPathComponent("rayline-import-test-\(UUID().uuidString)")
         UserDefaults.standard.removeObject(forKey: "activeProfileId")
     }
 

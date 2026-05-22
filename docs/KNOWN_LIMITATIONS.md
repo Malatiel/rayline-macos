@@ -1,7 +1,7 @@
 # Known Limitations
 
 This document describes current limitations honestly so users can decide
-whether Veil fits their needs.
+whether Rayline fits their needs.
 
 ## Release Status
 
@@ -36,7 +36,7 @@ whether Veil fits their needs.
 
 ## Protocol Backend
 
-- Veil uses sing-box as the production protocol backend.
+- Rayline uses sing-box as the production protocol backend.
 - The app does not ship a self-written production protocol engine.
 - Native protocol experiments, if any, should remain outside the production
   runtime path until they have their own threat model, tests, benchmarks, and
@@ -49,12 +49,12 @@ whether Veil fits their needs.
 - Refresh is manual.
 - Empty or fully invalid subscription refreshes fail safely without deleting
   existing profiles from that subscription.
-- Veil keeps the provider order from the subscription rather than sorting
+- Rayline keeps the provider order from the subscription rather than sorting
   profiles by latency.
 
 ## Privacy
 
-- Veil has no analytics, telemetry, advertising SDKs, crash reporting service,
+- Rayline has no analytics, telemetry, advertising SDKs, crash reporting service,
   or remote account system.
 - Logs and diagnostics can still contain server names or operational details.
   Review exported diagnostics before sharing them.

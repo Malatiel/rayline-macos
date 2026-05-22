@@ -1,9 +1,9 @@
-# Veil
+# Rayline
 
 A lightweight macOS VPN client for **VLESS**, **VMess**, **Shadowsocks**, and **Trojan** protocols.
 Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the system SOCKS5 proxy automatically.
 
-Veil's main app is intentionally a native macOS UI around sing-box, not a
+Rayline's main app is intentionally a native macOS UI around sing-box, not a
 self-written protocol engine. Native protocol experiments, if any, are kept out
 of the production runtime path until they have their own review and release
 criteria.
@@ -16,7 +16,7 @@ criteria.
 
 ## Features
 
-- **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions)
+- **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.rayline/profiles.json` with `0600` permissions)
 - **Bulk import** — paste multiple proxy links, import base64 subscription bodies, or decode a QR image from the clipboard
 - **Persistent subscriptions** — save HTTP(S) subscription sources, refresh them manually, keep provider order, and keep imported profiles labeled by source
 - **Subscription reconciliation** — refresh updates renamed profiles, removes stale profiles from that subscription, and fails safely when a subscription returns no valid profiles
@@ -30,7 +30,7 @@ criteria.
 - **Log filtering** — search by text, filter by level (all / error / warning / info), copy to clipboard
 - **Redacted diagnostics export** — support reports remove proxy links, UUIDs, passwords, emails, and local paths before writing to disk
 - Automatic macOS system SOCKS5 proxy configuration with previous proxy settings restored on disconnect
-- Startup recovery restores saved SOCKS proxy settings and stops stale Veil-owned sing-box processes after crash or force quit
+- Startup recovery restores saved SOCKS proxy settings and stops stale Rayline-owned sing-box processes after crash or force quit
 - Manual SOCKS proxy reset action in Settings for recovery after interrupted sessions
 - First-run checklist for preparing sing-box and adding a profile
 - Bundled sing-box support, automatic download, or local binary selection from the UI
@@ -54,13 +54,13 @@ criteria.
 ## Quick start (pre-built)
 
 1. Download the archive for your Mac from the [latest stable release](../../releases/latest), or from the [releases page](../../releases) if you are testing a pre-release:
-   - `veil-macos-arm64.zip` for Apple Silicon
-   - `veil-macos-x86_64.zip` for Intel
+   - `rayline-macos-arm64.zip` for Apple Silicon
+   - `rayline-macos-x86_64.zip` for Intel
 2. Download the matching `.sha256` file and verify the archive:
    ```bash
-   shasum -a 256 -c veil-macos-arm64.zip.sha256
+   shasum -a 256 -c rayline-macos-arm64.zip.sha256
    ```
-3. Unzip and drag `Veil.app` to `/Applications`.
+3. Unzip and drag `Rayline.app` to `/Applications`.
 4. Open the app — if sing-box is missing, download it automatically or choose a local `sing-box` executable.
 5. Paste a proxy URL, multiple proxy URLs, a subscription body, or add a subscription source from the Profiles tab.
 6. Select a profile and click **Connect**.
@@ -77,14 +77,14 @@ criteria.
 
 ```bash
 # Clone
-git clone https://github.com/Malatiel/proxy_client_VEIL.git
-cd proxy_client_VEIL
+git clone https://github.com/Malatiel/rayline-macos.git
+cd rayline-macos
 
 # Build the macOS app (uses SING_BOX_BINARY when set, otherwise downloads pinned sing-box)
 cd App && bash build.sh
 
-# The app is now at ../veil.app
-open ../veil.app
+# The app is now at ../Rayline.app
+open ../Rayline.app
 ```
 
 Official release archives contain the SwiftUI macOS app and bundled sing-box only.
@@ -110,7 +110,7 @@ For release-candidate checks, see
 Release archives can be checked locally with:
 
 ```bash
-EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N scripts/verify_release_artifact.sh release/veil-macos-arm64.zip
+EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N scripts/verify_release_artifact.sh release/rayline-macos-arm64.zip
 ```
 
 ---
@@ -131,18 +131,19 @@ URLs can be pasted directly from share links — embedded whitespace and line-br
 ## Architecture
 
 ```
-Veil/
+Rayline/
 ├── App/                        # Swift macOS app (SwiftUI)
-│   ├── VeilApp.swift           # App entry point (MenuBarExtra)
+│   ├── RaylineApp.swift           # App entry point (MenuBarExtra)
 │   ├── ContentView.swift       # Navigation shell and app-level actions
 │   ├── StatusScreen.swift      # Main connection screen
 │   ├── ProfilesScreen.swift    # Profile list and import UI
 │   ├── LogScreen.swift         # Connection diagnostics log
 │   ├── SettingsScreen.swift    # App settings
 │   ├── SharedViews.swift       # Reusable SwiftUI components
+│   ├── AppPaths.swift          # Data directory selection and legacy fallback
 │   ├── VPNManager.swift        # sing-box lifecycle, proxy settings, TCP ping
 │   ├── ProxyParser.swift       # URL parser, config generator, URL export
-│   ├── ProfileManager.swift    # Multi-profile CRUD, persistence (~/.veil/)
+│   ├── ProfileManager.swift    # Multi-profile CRUD, persistence (~/.rayline/)
 │   ├── SubscriptionManager.swift # HTTP(S) subscription sources and refresh
 │   ├── StatusSummary.swift     # Presentation model for connection state
 │   ├── ProfilesSummary.swift   # Presentation model for profile state
@@ -173,7 +174,7 @@ history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 ## How it works
 
 1. **Parse** — the proxy URL is validated and decoded into a `ProxyConfig` struct.
-2. **Generate** — a sing-box JSON configuration is written to `~/.veil/singbox.json` with owner-only permissions (`0600`).
+2. **Generate** — a sing-box JSON configuration is written to `~/.rayline/singbox.json` with owner-only permissions (`0600`).
 3. **Launch** — sing-box is started as a child process; its output is tailed into the log view.
 4. **Proxy** — current macOS SOCKS5 proxy settings are saved, then the system SOCKS5 proxy is set to `127.0.0.1:10808` for all active network services.
 5. **Monitor** — a background timer measures TCP RTT to the VPN server every 3 s and displays it in the status card.
@@ -184,9 +185,9 @@ history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 ## Security notes
 
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
-- **Profile storage**: saved profiles (`~/.veil/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
-- **Subscription storage**: saved subscription URLs (`~/.veil/subscriptions.json`) are written with `0600` permissions. Treat subscription URLs as secrets because they may contain account tokens.
-- The generated sing-box config file (`~/.veil/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
+- **Profile storage**: saved profiles (`~/.rayline/profiles.json`) are written with `0600` permissions — only the owner can read credentials. If `~/.rayline` does not exist but legacy `~/.veil` data exists, Rayline reads the legacy directory for compatibility. No sensitive data is stored in UserDefaults.
+- **Subscription storage**: saved subscription URLs (`~/.rayline/subscriptions.json`) are written with `0600` permissions. Treat subscription URLs as secrets because they may contain account tokens.
+- The generated sing-box config file (`~/.rayline/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
 - **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded port parsing, and validation for supported proxy URL schemes.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
 - In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.
@@ -209,7 +210,7 @@ For safe support requests, see [SUPPORT.md](SUPPORT.md).
   benchmarks.
 - Release builds are notarized only when Apple Developer ID credentials are
   configured in the release workflow.
-- Veil uses sing-box as the production protocol backend and does not ship a
+- Rayline uses sing-box as the production protocol backend and does not ship a
   self-written production protocol engine.
 
 See [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for the full list.

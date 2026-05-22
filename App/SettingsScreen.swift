@@ -142,7 +142,7 @@ struct SettingsScreen: View {
 
                 SettingsRow(
                     title: lang.t("Приложение", "Application"),
-                    subtitle: lang.t("Закрыть Veil", "Quit Veil")
+                    subtitle: lang.t("Закрыть Rayline", "Quit Rayline")
                 ) {
                     Button(lang.t("Выйти", "Quit")) {
                         quitApplication()

@@ -150,14 +150,14 @@ struct StatusSummary {
             )
         case .connecting:
             return text(
-                ru: "Veil поднимает туннель и готовит системный прокси. Лог доступен отдельно, если понадобится диагностика.",
-                en: "Veil is bringing up the tunnel and preparing the system proxy. The log stays on its own tab for diagnostics.",
+                ru: "Rayline поднимает туннель и готовит системный прокси. Лог доступен отдельно, если понадобится диагностика.",
+                en: "Rayline is bringing up the tunnel and preparing the system proxy. The log stays on its own tab for diagnostics.",
                 language: language
             )
         case .disconnecting:
             return text(
-                ru: "Veil снимает системный прокси и завершает очистку. Лучше дождаться этого состояния перед выходом.",
-                en: "Veil is clearing the system proxy and finishing cleanup. It's best to let this complete before quitting.",
+                ru: "Rayline снимает системный прокси и завершает очистку. Лучше дождаться этого состояния перед выходом.",
+                en: "Rayline is clearing the system proxy and finishing cleanup. It's best to let this complete before quitting.",
                 language: language
             )
         case .connected:
@@ -190,8 +190,8 @@ struct StatusSummary {
 
         if lower.contains("10808") || lower.contains("порт") || lower.contains("port") {
             return text(
-                ru: "Порт 127.0.0.1:10808 может быть занят. Остановите старый процесс или перезапустите Veil.",
-                en: "Port 127.0.0.1:10808 may be busy. Stop the old process or restart Veil.",
+                ru: "Порт 127.0.0.1:10808 может быть занят. Остановите старый процесс или перезапустите Rayline.",
+                en: "Port 127.0.0.1:10808 may be busy. Stop the old process or restart Rayline.",
                 language: language
             )
         }

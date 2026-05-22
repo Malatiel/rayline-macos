@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 final class DiagnosticExporterTests: XCTestCase {
     func testGivenProxyUrlAndUuidWhenRedactedThenSensitiveValuesAreRemoved() {
@@ -16,7 +16,7 @@ final class DiagnosticExporterTests: XCTestCase {
 
     func testGivenEmailAndLocalPathWhenRedactedThenTheyAreRemoved() {
         let home = "/" + "Use" + "rs/alice"
-        let input = "contact alice@example.com log \(home)/.veil/singbox.log"
+        let input = "contact alice@example.com log \(home)/.rayline/singbox.log"
 
         let redacted = DiagnosticRedactor.redact(input, homeDirectory: home)
 
@@ -27,11 +27,11 @@ final class DiagnosticExporterTests: XCTestCase {
     }
 
     func testGivenTemporaryPathOutsideHomeWhenRedactedThenItIsRemoved() {
-        let input = "binary /private/tmp/veil-release/Veil.app/Contents/MacOS/sing-box"
+        let input = "binary /private/tmp/rayline-release/Rayline.app/Contents/MacOS/sing-box"
 
         let redacted = DiagnosticRedactor.redact(input, homeDirectory: "/home/test")
 
-        XCTAssertFalse(redacted.contains("/private/tmp/veil-release"))
+        XCTAssertFalse(redacted.contains("/private/tmp/rayline-release"))
         XCTAssertTrue(redacted.contains("<redacted-local-path>"))
     }
 
@@ -53,21 +53,21 @@ final class DiagnosticExporterTests: XCTestCase {
             customSingBoxPath: "/" + "Use" + "rs/alice/bin/sing-box",
             activeProfile: profile,
             logs: [
-                "10:00:00 sing-box: /private/tmp/veil/sing-box",
+                "10:00:00 sing-box: /private/tmp/rayline/sing-box",
                 "10:00:01 imported trojan://top-secret-password@vpn.example:443"
             ],
             now: Date(timeIntervalSince1970: 0)
         )
 
         XCTAssertFalse(report.contains("top-secret-password"))
-        XCTAssertFalse(report.contains("/private/tmp/veil"))
-        XCTAssertTrue(report.contains("Veil Diagnostics"))
+        XCTAssertFalse(report.contains("/private/tmp/rayline"))
+        XCTAssertTrue(report.contains("Rayline Diagnostics"))
         XCTAssertTrue(report.contains("<redacted-proxy-url>"))
     }
 
     func testGivenReportWriteWhenLoadedThenFileHasOwnerOnlyPermissions() throws {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("veil-diagnostics-\(UUID().uuidString).txt")
+            .appendingPathComponent("rayline-diagnostics-\(UUID().uuidString).txt")
         defer { try? FileManager.default.removeItem(at: url) }
 
         try DiagnosticExporter.write("diagnostics", to: url)

@@ -7,8 +7,8 @@ Use this checklist before pushing a release tag.
 - Update `CFBundleShortVersionString` and `CFBundleVersion` in
   `App/Info.plist`.
 - Add a new entry to `CHANGELOG.md`.
-- Confirm GitHub Release artifacts will include `veil-macos-<arch>.zip` and
-  `veil-macos-<arch>.zip.sha256`.
+- Confirm GitHub Release artifacts will include `rayline-macos-<arch>.zip` and
+  `rayline-macos-<arch>.zip.sha256`.
 - For release candidates, complete
   [PREPROD_RELEASE_CHECKLIST.md](PREPROD_RELEASE_CHECKLIST.md) before tagging.
 - Confirm the tag does not already exist:
@@ -43,11 +43,11 @@ Create and verify local release artifacts:
 
 ```bash
 mkdir -p release
-ditto -c -k --keepParent /path/to/Veil.app release/veil-macos-arm64.zip
+ditto -c -k --keepParent /path/to/Rayline.app release/rayline-macos-arm64.zip
 cd release
-shasum -a 256 veil-macos-arm64.zip > veil-macos-arm64.zip.sha256
-shasum -a 256 -c veil-macos-arm64.zip.sha256
-EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N ../scripts/verify_release_artifact.sh veil-macos-arm64.zip
+shasum -a 256 rayline-macos-arm64.zip > rayline-macos-arm64.zip.sha256
+shasum -a 256 -c rayline-macos-arm64.zip.sha256
+EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N ../scripts/verify_release_artifact.sh rayline-macos-arm64.zip
 ```
 
 ## Privacy and Security
@@ -80,7 +80,7 @@ The tag push starts the GitHub release workflow.
 - Confirm GitHub Actions completed for privacy scan, Swift tests, and both app
   architectures.
 - Download the release archives and `.sha256` files.
-- Verify each archive with `shasum -a 256 -c veil-macos-<arch>.zip.sha256`.
+- Verify each archive with `shasum -a 256 -c rayline-macos-<arch>.zip.sha256`.
 - Run `scripts/verify_release_artifact.sh` against each downloaded archive.
 - Confirm the verified archives unzip cleanly.
 - Launch the app on a test Mac.

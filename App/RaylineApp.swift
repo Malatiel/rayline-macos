@@ -7,7 +7,7 @@ private let menuBarConnectedAccent = connectedAccent
 // Requires macOS 13+. Set LSUIElement = YES in Info.plist to hide Dock icon.
 
 @main
-struct VeilApp: App {
+struct RaylineApp: App {
     @StateObject private var vpn            = VPNManager()
     @StateObject private var profileManager = ProfileManager()
     @StateObject private var subscriptionManager = SubscriptionManager()

@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 @MainActor
 final class ProfileManagerTests: XCTestCase {
@@ -9,7 +9,7 @@ final class ProfileManagerTests: XCTestCase {
     override func setUp() {
         super.setUp()
         tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("veil-test-\(UUID().uuidString)")
+            .appendingPathComponent("rayline-test-\(UUID().uuidString)")
         UserDefaults.standard.removeObject(forKey: "activeProfileId")
     }
 
@@ -199,7 +199,7 @@ final class ProfileManagerTests: XCTestCase {
     func testSaveToReadOnlyDirReportsError() {
         // Create a read-only directory
         let readOnlyDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("veil-readonly-\(UUID().uuidString)")
+            .appendingPathComponent("rayline-readonly-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: readOnlyDir, withIntermediateDirectories: true)
         try? FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: readOnlyDir.path)
 

@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 final class ProfilesSummaryTests: XCTestCase {
     func testGivenNoProfilesWhenImportIsCollapsedThenEmptyStateIsVisibleAndPanelStaysHidden() {

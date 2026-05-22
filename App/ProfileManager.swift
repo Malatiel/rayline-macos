@@ -17,9 +17,7 @@ struct ProfileLatencyMeasurement: Equatable {
 @MainActor
 final class ProfileManager: ObservableObject {
 
-    static let defaultProfilesDir: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".veil")
+    static let defaultProfilesDir: URL = AppPaths.defaultDataDir
 
     let profilesDir: URL
     let profilesFile: URL

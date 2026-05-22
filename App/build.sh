@@ -2,7 +2,7 @@
 set -e
 cd "$(dirname "$0")"
 
-APP="${APP_OUTPUT:-../veil.app}"
+APP="${APP_OUTPUT:-../Rayline.app}"
 MACOS="$APP/Contents/MacOS"
 RES="$APP/Contents/Resources"
 BUILD_ARCH="${BUILD_ARCH:-$(uname -m)}"
@@ -18,7 +18,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "🔨 Сборка veil.app..."
+echo "🔨 Сборка Rayline.app..."
 rm -rf "$APP"
 if command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.provenance "$APP" 2>/dev/null || true
@@ -68,7 +68,7 @@ if [ ! -f "$SB_BINARY" ]; then
             EXPECTED_SHA256="$SB_SHA256_AMD64"
         fi
 
-        TMPDIR_BUILD="$(mktemp -d "${TMPDIR:-/tmp}/veil-build.XXXXXX")"
+        TMPDIR_BUILD="$(mktemp -d "${TMPDIR:-/tmp}/rayline-build.XXXXXX")"
         ARCHIVE="$TMPDIR_BUILD/singbox.tar.gz"
         EXTRACT_DIR="$TMPDIR_BUILD/extract"
         mkdir -p "$EXTRACT_DIR"
@@ -105,6 +105,7 @@ swiftc \
     -framework AppKit \
     -framework Foundation \
     -framework CoreImage \
+    AppPaths.swift \
     ProxyParser.swift \
     ProfileImportParser.swift \
     LanguageManager.swift \
@@ -124,8 +125,8 @@ swiftc \
     ProfilesScreen.swift \
     StatusScreen.swift \
     SettingsScreen.swift \
-    VeilApp.swift \
-    -o "$MACOS/veil"
+    RaylineApp.swift \
+    -o "$MACOS/rayline"
 
 sign_path() {
     local path="$1"
@@ -141,7 +142,7 @@ sign_path() {
 
 echo "🔏 Подпись bundle..."
 sign_path "$MACOS/sing-box"
-sign_path "$MACOS/veil"
+sign_path "$MACOS/rayline"
 sign_path "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 

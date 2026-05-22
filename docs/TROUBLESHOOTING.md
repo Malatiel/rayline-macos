@@ -11,7 +11,7 @@ This page lists common local issues and safe diagnostics.
 
 ## sing-box Is Missing
 
-Veil can use sing-box in three ways:
+Rayline can use sing-box in three ways:
 
 - bundled inside the release archive;
 - downloaded automatically by the app;
@@ -36,11 +36,11 @@ Do not commit local sing-box binaries to the repository.
 
 ## System Proxy Was Not Restored
 
-Veil snapshots SOCKS proxy settings before connecting and restores them on
+Rayline snapshots SOCKS proxy settings before connecting and restores them on
 disconnect. If the app or sing-box exits unexpectedly:
 
-1. Reopen Veil and disconnect if it still shows an active state.
-2. Open Settings in Veil and use **Reset** next to System proxy.
+1. Reopen Rayline and disconnect if it still shows an active state.
+2. Open Settings in Rayline and use **Reset** next to System proxy.
 3. Check macOS network proxy settings manually.
 4. If Proxy Guard was enabled, the SOCKS proxy may intentionally remain active
    until you reconnect or disconnect.

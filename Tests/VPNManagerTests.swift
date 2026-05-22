@@ -1,5 +1,5 @@
 import XCTest
-@testable import VeilCore
+@testable import RaylineCore
 
 @MainActor
 final class VPNManagerTests: XCTestCase {

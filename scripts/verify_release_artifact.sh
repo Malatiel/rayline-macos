@@ -14,7 +14,7 @@ Checks:
   - SHA256 checksum verifies with shasum -a 256 -c
   - archive contains exactly one .app bundle
   - Info.plist is present and readable
-  - Contents/MacOS/veil exists and is executable
+  - Contents/MacOS/rayline exists and is executable
   - Contents/MacOS/sing-box exists and is executable
 USAGE
 }
@@ -58,7 +58,7 @@ echo "Verifying checksum: $CHECKSUM_BASENAME"
     shasum -a 256 -c "$CHECKSUM_BASENAME"
 )
 
-TMPDIR_VERIFY="$(mktemp -d "${TMPDIR:-/tmp}/veil-release-verify.XXXXXX")"
+TMPDIR_VERIFY="$(mktemp -d "${TMPDIR:-/tmp}/rayline-release-verify.XXXXXX")"
 cleanup() {
     rm -rf "$TMPDIR_VERIFY"
 }
@@ -77,7 +77,7 @@ fi
 
 APP_PATH="$APP_PATHS"
 INFO_PLIST="$APP_PATH/Contents/Info.plist"
-VEIL_BIN="$APP_PATH/Contents/MacOS/veil"
+RAYLINE_BIN="$APP_PATH/Contents/MacOS/rayline"
 SING_BOX_BIN="$APP_PATH/Contents/MacOS/sing-box"
 
 if [ ! -f "$INFO_PLIST" ]; then
@@ -85,8 +85,8 @@ if [ ! -f "$INFO_PLIST" ]; then
     exit 65
 fi
 
-if [ ! -x "$VEIL_BIN" ]; then
-    echo "ERROR: veil binary is missing or not executable: $VEIL_BIN" >&2
+if [ ! -x "$RAYLINE_BIN" ]; then
+    echo "ERROR: rayline binary is missing or not executable: $RAYLINE_BIN" >&2
     exit 65
 fi
 
@@ -110,6 +110,6 @@ fi
 
 echo "App: $(basename "$APP_PATH")"
 echo "Version: $VERSION ($BUILD)"
-echo "veil: $(file "$VEIL_BIN")"
+echo "rayline: $(file "$RAYLINE_BIN")"
 echo "sing-box: $("$SING_BOX_BIN" version 2>/dev/null | head -1 || file "$SING_BOX_BIN")"
 echo "Release artifact OK"

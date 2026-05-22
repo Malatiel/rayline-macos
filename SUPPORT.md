@@ -1,23 +1,23 @@
 # Support
 
-Veil is maintained as an open-source project. Please keep support requests safe
+Rayline is maintained as an open-source project. Please keep support requests safe
 to share publicly.
 
 ## Before Opening an Issue
 
 1. Check the latest release notes and open issues.
 2. Confirm that you are using macOS 13 or newer.
-3. Confirm whether sing-box is bundled, downloaded by Veil, or selected from a
+3. Confirm whether sing-box is bundled, downloaded by Rayline, or selected from a
    local path.
 4. Try to reproduce with a test profile or synthetic proxy link.
-5. Export redacted diagnostics from Veil if logs are needed.
+5. Export redacted diagnostics from Rayline if logs are needed.
 
 ## Export Diagnostics Safely
 
-1. Open Veil.
+1. Open Rayline.
 2. Go to **Log**.
 3. Click **Export**.
-4. Save `veil-diagnostics.txt`.
+4. Save `rayline-diagnostics.txt`.
 5. Open the file and review it before attaching it to an issue.
 
 The diagnostics export redacts proxy URLs, UUIDs, passwords, emails, and local
@@ -26,7 +26,7 @@ profile name, or network service name identifies you.
 
 ## What to Include
 
-- Veil version;
+- Rayline version;
 - macOS version and CPU architecture;
 - proxy protocol type, without real credentials;
 - whether the issue happens before connect, during connect, or on disconnect;
