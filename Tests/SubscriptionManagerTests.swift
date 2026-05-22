@@ -250,6 +250,42 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertEqual(profiles.profiles.map(\.server), ["kept.example"])
     }
 
+    func testGivenEmptySuccessfulSubscriptionWithExistingSourceProfilesThenRefreshFailsAndKeepsProfiles() async throws {
+        let previousLanguage = LanguageManager.shared.language
+        LanguageManager.shared.language = .en
+        defer { LanguageManager.shared.language = previousLanguage }
+
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/empty",
+            name: "Empty"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000101@kept.example:443?security=tls&type=tcp#Kept
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+
+        let summary = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in "" },
+            measureLatency: { _ in nil }
+        )
+
+        XCTAssertEqual(summary.addedCount, 0)
+        XCTAssertEqual(summary.removedCount, 0)
+        XCTAssertEqual(summary.failedCount, 1)
+        XCTAssertEqual(profiles.profiles.map(\.server), ["kept.example"])
+        XCTAssertTrue(subscriptions.sources.first?.lastError?.contains("No valid profiles") == true)
+    }
+
     func testGivenSubscriptionProfilesWhenSelectingFastestThenActiveProfileChanges() async throws {
         let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
         let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
@@ -278,6 +314,45 @@ final class SubscriptionManagerTests: XCTestCase {
 
         XCTAssertEqual(selected?.server, "fast.example")
         XCTAssertEqual(profiles.activeProfile?.server, "fast.example")
+    }
+
+    func testGivenManySubscriptionProfilesWhenSelectingFastestThenLatencyChecksAreBoundedAndConcurrent() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/concurrent",
+            name: "Concurrent"
+        )
+        for index in 0..<8 {
+            var profile = ProxyConfig(
+                proto: .vless,
+                uuid: "00000000-0000-0000-0000-00000000020\(index)",
+                server: "node-\(index).example",
+                port: 443,
+                name: "Node \(index)"
+            )
+            profile.sourceId = source.id
+            profile.sourceName = source.name
+            profiles.addProfile(profile)
+        }
+        let probe = LatencyProbe()
+
+        let selected = await subscriptions.selectFastestProfile(
+            sourceId: source.id,
+            profileManager: profiles,
+            maxConcurrentLatencyChecks: 3,
+            measureLatency: { profile in
+                await probe.started()
+                try? await Task.sleep(nanoseconds: 20_000_000)
+                await probe.finished()
+                return profile.server == "node-6.example" ? 5 : 80
+            }
+        )
+
+        let maxConcurrent = await probe.maxConcurrent()
+        XCTAssertEqual(selected?.server, "node-6.example")
+        XCTAssertGreaterThan(maxConcurrent, 1)
+        XCTAssertLessThanOrEqual(maxConcurrent, 3)
     }
 
     func testGivenSubscriptionDeletedThenProfilesFromThatSourceAreDeletedAndManualProfilesRemain() async throws {
@@ -362,5 +437,23 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertEqual(summary.failedCount, 1)
         XCTAssertTrue(profiles.profiles.isEmpty)
         XCTAssertTrue(subscriptions.sources.first?.lastError?.contains("503") == true)
+    }
+}
+
+private actor LatencyProbe {
+    private var inFlight = 0
+    private var peak = 0
+
+    func started() {
+        inFlight += 1
+        peak = max(peak, inFlight)
+    }
+
+    func finished() {
+        inFlight -= 1
+    }
+
+    func maxConcurrent() -> Int {
+        peak
     }
 }

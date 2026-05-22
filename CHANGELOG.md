@@ -26,6 +26,12 @@ This project uses semantic versioning where possible:
   and used to label imported profiles by source.
 - Subscription refresh now reconciles saved profiles with the remote source by
   updating renamed profiles and removing stale profiles from that subscription.
+- Empty or fully invalid subscription refreshes now fail safely without
+  deleting previously saved profiles.
+- Subscription rows now show profile counts, refresh status, and last refresh
+  summaries or errors.
+- Fastest-server selection now measures subscription latency with bounded
+  concurrency instead of checking servers one by one.
 
 ## 1.0.9 - 2026-05-21
 

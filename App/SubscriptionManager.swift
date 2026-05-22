@@ -68,6 +68,7 @@ enum SubscriptionFetchError: LocalizedError, Equatable {
     case httpStatus(Int)
     case tooLarge
     case nonUTF8
+    case noValidProfiles
 
     var errorDescription: String? {
         let L = LanguageManager.shared
@@ -78,6 +79,11 @@ enum SubscriptionFetchError: LocalizedError, Equatable {
             return L.t("Подписка слишком большая", "Subscription is too large")
         case .nonUTF8:
             return L.t("Подписка не похожа на текст UTF-8", "Subscription is not UTF-8 text")
+        case .noValidProfiles:
+            return L.t(
+                "В подписке не найдено валидных профилей",
+                "No valid profiles found in subscription"
+            )
         }
     }
 }
@@ -85,9 +91,10 @@ enum SubscriptionFetchError: LocalizedError, Equatable {
 @MainActor
 final class SubscriptionManager: ObservableObject {
     typealias Fetch = (URL) async throws -> String
-    typealias MeasureLatency = (ProxyConfig) async -> Int?
+    typealias MeasureLatency = @Sendable (ProxyConfig) async -> Int?
 
     static let defaultSubscriptionsDir = ProfileManager.defaultProfilesDir
+    nonisolated static let defaultMaxConcurrentLatencyChecks = 8
 
     let subscriptionsDir: URL
     let subscriptionsFile: URL
@@ -149,7 +156,9 @@ final class SubscriptionManager: ObservableObject {
         sourceId: UUID,
         profileManager: ProfileManager,
         fetch: @escaping Fetch = SubscriptionContentFetcher.fetch,
-        measureLatency: @escaping MeasureLatency = SubscriptionLatencyMeasurer.measure
+        measureLatency: @escaping MeasureLatency = { profile in
+            await SubscriptionLatencyMeasurer.measure(profile)
+        }
     ) async -> SubscriptionRefreshResult {
         guard let idx = sources.firstIndex(where: { $0.id == sourceId }) else {
             return SubscriptionRefreshResult(
@@ -181,6 +190,15 @@ final class SubscriptionManager: ObservableObject {
             for index in labeledProfiles.indices {
                 labeledProfiles[index].sourceId = source.id
                 labeledProfiles[index].sourceName = source.name
+            }
+            guard !labeledProfiles.isEmpty else {
+                return finishRefresh(
+                    sourceIndex: idx,
+                    added: 0,
+                    skipped: 0,
+                    failed: max(1, parsed.failureCount),
+                    error: SubscriptionFetchError.noValidProfiles.localizedDescription
+                )
             }
 
             let syncResult = profileManager.syncSubscriptionProfiles(
@@ -246,25 +264,56 @@ final class SubscriptionManager: ObservableObject {
 
     private func fastestProfile(
         from profiles: [ProxyConfig],
-        measureLatency: MeasureLatency
+        maxConcurrentLatencyChecks: Int = SubscriptionManager.defaultMaxConcurrentLatencyChecks,
+        measureLatency: @escaping MeasureLatency
     ) async -> ProxyConfig? {
+        let limit = max(1, maxConcurrentLatencyChecks)
+        var nextIndex = 0
+        var inFlight = 0
         var best: (profile: ProxyConfig, latency: Int)?
-        for profile in profiles {
-            guard let latency = await measureLatency(profile) else { continue }
-            if best == nil || latency < best!.latency {
-                best = (profile, latency)
+
+        return await withTaskGroup(of: (ProxyConfig, Int?).self) { group in
+            func scheduleNext() {
+                guard nextIndex < profiles.count else { return }
+                let profile = profiles[nextIndex]
+                nextIndex += 1
+                inFlight += 1
+                group.addTask {
+                    let latency = await measureLatency(profile)
+                    return (profile, latency)
+                }
             }
+
+            for _ in 0..<min(limit, profiles.count) {
+                scheduleNext()
+            }
+
+            while inFlight > 0, let (profile, latency) = await group.next() {
+                inFlight -= 1
+                if let latency, best == nil || latency < best!.latency {
+                    best = (profile, latency)
+                }
+                scheduleNext()
+            }
+
+            return best?.profile
         }
-        return best?.profile
     }
 
     func selectFastestProfile(
         sourceId: UUID,
         profileManager: ProfileManager,
-        measureLatency: @escaping MeasureLatency = SubscriptionLatencyMeasurer.measure
+        maxConcurrentLatencyChecks: Int = SubscriptionManager.defaultMaxConcurrentLatencyChecks,
+        measureLatency: @escaping MeasureLatency = { profile in
+            await SubscriptionLatencyMeasurer.measure(profile)
+        }
     ) async -> ProxyConfig? {
         let sourceProfiles = profileManager.profiles.filter { $0.sourceId == sourceId }
-        guard let fastest = await fastestProfile(from: sourceProfiles, measureLatency: measureLatency) else {
+        guard let fastest = await fastestProfile(
+            from: sourceProfiles,
+            maxConcurrentLatencyChecks: maxConcurrentLatencyChecks,
+            measureLatency: measureLatency
+        ) else {
             return nil
         }
         profileManager.selectProfile(id: fastest.id)

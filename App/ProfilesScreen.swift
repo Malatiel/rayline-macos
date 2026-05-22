@@ -295,23 +295,29 @@ struct ProfilesScreen: View {
 
     private func subscriptionRow(_ source: SubscriptionSource) -> some View {
         let isRefreshing = refreshingSubscriptionIds.contains(source.id)
-        let hasProfiles = profileManager.profiles.contains { $0.sourceId == source.id || $0.sourceName == source.name }
+        let profileCount = profileManager.profiles.filter { $0.sourceId == source.id || $0.sourceName == source.name }.count
+        let hasProfiles = profileCount > 0
+        let summary = SubscriptionSourceDisplaySummary(
+            source: source,
+            profileCount: profileCount,
+            language: lang.language
+        )
         return HStack(spacing: 10) {
             Button {
                 selectFastestSubscription(source.id)
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: isRefreshing ? "arrow.triangle.2.circlepath" : "tray.full")
+                    Image(systemName: isRefreshing ? "arrow.triangle.2.circlepath" : summary.statusIcon)
                         .frame(width: 18)
-                        .foregroundStyle(isRefreshing ? .orange : .secondary)
+                        .foregroundStyle(isRefreshing ? .orange : (summary.isError ? Color.red : Color.secondary))
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(source.name)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Text(source.lastError ?? source.lastSummary ?? source.url)
+                        Text(summary.detail)
                             .font(.system(size: 11))
-                            .foregroundStyle(source.lastError == nil ? Color.secondary : Color.red)
+                            .foregroundStyle(summary.isError ? Color.red : Color.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }

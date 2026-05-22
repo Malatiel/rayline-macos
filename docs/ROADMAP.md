@@ -61,10 +61,9 @@ backend without that review work.
 
 ### v1.2 Profile Management
 
-- Improve subscription conflict handling for renamed profiles and duplicate
-  remote entries.
+- Improve subscription conflict handling for duplicate remote entries.
 - Add custom profile groups or folders.
-- Add latency refresh for multiple profiles and optional sorting.
+- Add cached latency refresh and optional sorting.
 - Add safer profile export with an explicit confirmation when credentials are
   included.
 

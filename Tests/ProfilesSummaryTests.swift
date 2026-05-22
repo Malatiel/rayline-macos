@@ -93,6 +93,53 @@ final class ProfilesSummaryTests: XCTestCase {
         XCTAssertEqual(summary.rows[0].sourceLabel, "Work")
     }
 
+    func testGivenSubscriptionSourceWithLastSummaryThenDisplaySummaryShowsCountsAndRefreshStatus() {
+        var source = SubscriptionSource(
+            name: "Work",
+            url: "https://subscriptions.example/work",
+            lastRefreshedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            lastSummary: "Added: 0, duplicates: 2, updated: 1, removed: 1, failed: 0"
+        )
+        source.lastError = nil
+
+        let summary = SubscriptionSourceDisplaySummary(
+            source: source,
+            profileCount: 3,
+            language: .en
+        )
+
+        XCTAssertEqual(summary.statusIcon, "checkmark.circle")
+        XCTAssertFalse(summary.isError)
+        XCTAssertEqual(summary.profileCountText, "3 profiles")
+        XCTAssertTrue(summary.detail.contains("3 profiles"))
+        XCTAssertTrue(summary.detail.contains("updated: 1"))
+        XCTAssertTrue(summary.detail.contains("removed: 1"))
+        XCTAssertTrue(summary.detail.contains("Last refresh"))
+    }
+
+    func testGivenSubscriptionSourceWithErrorThenDisplaySummaryPrioritizesFailure() {
+        var source = SubscriptionSource(
+            name: "Work",
+            url: "https://subscriptions.example/work",
+            lastRefreshedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            lastSummary: "Added: 1, duplicates: 0, updated: 0, removed: 0, failed: 0"
+        )
+        source.lastError = "No valid profiles found in subscription"
+
+        let summary = SubscriptionSourceDisplaySummary(
+            source: source,
+            profileCount: 1,
+            language: .en
+        )
+
+        XCTAssertEqual(summary.statusIcon, "exclamationmark.triangle")
+        XCTAssertTrue(summary.isError)
+        XCTAssertEqual(summary.profileCountText, "1 profile")
+        XCTAssertTrue(summary.detail.contains("Refresh failed"))
+        XCTAssertTrue(summary.detail.contains("No valid profiles"))
+        XCTAssertFalse(summary.detail.contains("Added: 1"))
+    }
+
     private func makeConfig(name: String, server: String, port: Int) -> ProxyConfig {
         ProxyConfig(
             proto: .vless,

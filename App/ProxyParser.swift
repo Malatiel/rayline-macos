@@ -2,9 +2,9 @@ import Foundation
 
 // MARK: - Models
 
-enum ProxyProtocol: String, Equatable, Codable { case vless, vmess, shadowsocks, trojan }
+enum ProxyProtocol: String, Equatable, Codable, Sendable { case vless, vmess, shadowsocks, trojan }
 
-struct ProxyConfig: Codable, Identifiable, Equatable {
+struct ProxyConfig: Codable, Identifiable, Equatable, Sendable {
     var id:            UUID   = UUID()
     var proto:         ProxyProtocol
     var uuid:          String = ""
