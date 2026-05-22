@@ -17,6 +17,7 @@ criteria.
 ## Features
 
 - **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions)
+- **Bulk import** — paste multiple proxy links, import base64 subscription bodies, import HTTP(S) subscription URLs once, or decode a QR image from the clipboard
 - **Export / copy link** — reconstruct a shareable proxy URL from any saved profile
 - **Auto-connect** — optionally reconnect to the active profile on app launch
 - Supports **VLESS** (TCP / WS / gRPC / HTTP/2, TLS, REALITY), **VMess**, **Shadowsocks** (SIP002 + legacy), **Trojan**
@@ -59,7 +60,8 @@ criteria.
    ```
 3. Unzip and drag `veil.app` to `/Applications`.
 4. Open the app — if sing-box is missing, download it automatically or choose a local `sing-box` executable.
-5. Paste a proxy URL and click **Connect**.
+5. Paste a proxy URL, multiple proxy URLs, a subscription body, or import a subscription URL from the Profiles tab.
+6. Select a profile and click **Connect**.
 
 > **Gatekeeper prompt:** if you use an unsigned local build, macOS may show an "unidentified developer" warning. Signed and notarized release builds should open normally.
 

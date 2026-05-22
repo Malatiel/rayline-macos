@@ -46,6 +46,39 @@ final class ProfileManager: ObservableObject {
         saveProfiles()
     }
 
+    @discardableResult
+    func addProfiles(_ configs: [ProxyConfig]) -> ProfileBatchAddResult {
+        var addedCount = 0
+        var skippedDuplicateCount = 0
+        var knownProfiles = profiles
+
+        for config in configs {
+            if knownProfiles.contains(where: { $0.hasSameConnection(as: config) }) {
+                skippedDuplicateCount += 1
+                continue
+            }
+
+            var cfg = config
+            if knownProfiles.contains(where: { $0.id == cfg.id }) {
+                cfg.id = UUID()
+            }
+
+            profiles.append(cfg)
+            knownProfiles.append(cfg)
+            addedCount += 1
+            if activeProfileId == nil { activeProfileId = cfg.id }
+        }
+
+        if addedCount > 0 {
+            saveProfiles()
+        }
+
+        return ProfileBatchAddResult(
+            addedCount: addedCount,
+            skippedDuplicateCount: skippedDuplicateCount
+        )
+    }
+
     func deleteProfile(id: UUID) {
         profiles.removeAll { $0.id == id }
         if activeProfileId == id {

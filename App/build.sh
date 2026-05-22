@@ -104,7 +104,9 @@ swiftc \
     -framework SwiftUI \
     -framework AppKit \
     -framework Foundation \
+    -framework CoreImage \
     ProxyParser.swift \
+    ProfileImportParser.swift \
     LanguageManager.swift \
     ThemeManager.swift \
     ToastManager.swift \

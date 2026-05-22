@@ -19,6 +19,9 @@ This project uses semantic versioning where possible:
   interrupted sessions.
 - The Status screen now shows a first-run setup checklist for sing-box and
   profile import.
+- Profiles can now be imported in bulk from multiple links, base64 subscription
+  bodies, one-shot HTTP(S) subscription URLs, or QR images copied to the
+  clipboard.
 
 ## 1.0.9 - 2026-05-21
 

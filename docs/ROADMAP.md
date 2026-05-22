@@ -61,9 +61,8 @@ backend without that review work.
 
 ### v1.2 Profile Management
 
-- Add subscription import and refresh.
+- Add persistent subscription sources and manual refresh.
 - Add profile groups or folders.
-- Add QR import.
 - Add latency refresh for multiple profiles and optional sorting.
 - Add safer profile export with an explicit confirmation when credentials are
   included.

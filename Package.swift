@@ -21,6 +21,7 @@ let package = Package(
             ],
             sources: [
                 "ProxyParser.swift",
+                "ProfileImportParser.swift",
                 "ProfileManager.swift",
                 "ProfilesSummary.swift",
                 "SettingsSummary.swift",
@@ -39,6 +40,7 @@ let package = Package(
             path: "Tests",
             sources: [
                 "ProxyParserTests.swift",
+                "ProfileImportParserTests.swift",
                 "ProfileManagerTests.swift",
                 "ProfilesSummaryTests.swift",
                 "SharedCasesTests.swift",

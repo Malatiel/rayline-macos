@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import CoreImage
 
 let connectedAccent = Color(
     red: 0x38 / 255,
@@ -64,13 +65,16 @@ struct ContentView: View {
     @State private var renamingProfileId: UUID?
     @State private var renameText = ""
     @State private var profileNameText = ""
+    @State private var subscriptionURLText = ""
+    @State private var isImportingSubscription = false
     @State private var shimmerPhase: CGFloat = 0
     @State private var logSearchText = ""
     @State private var logFilter: LogFilter = .all
     @State private var previousVpnState: VPNManager.State = .disconnected
 
     private var trimmed: String { urlText.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var draftConfig: ProxyConfig? { try? ProxyParser.parse(trimmed) }
+    private var importPreview: ProfileImportResult { ProfileImportParser.parse(urlText) }
+    private var draftConfig: ProxyConfig? { importPreview.profiles.first }
     private var displayConfig: ProxyConfig? { vpn.config ?? profileManager.activeProfile ?? draftConfig }
     private var hasLaunchInput: Bool { profileManager.activeProfile != nil || !trimmed.isEmpty }
     private var statusSummary: StatusSummary {
@@ -231,10 +235,14 @@ struct ContentView: View {
                             renamingProfileId: $renamingProfileId,
                             renameText: $renameText,
                             profileNameText: $profileNameText,
+                            subscriptionURLText: $subscriptionURLText,
+                            isImportingSubscription: isImportingSubscription,
                             displayConfig: displayConfig,
                             checkURL: checkURL,
                             saveProfile: saveProfile,
                             pasteFromClipboard: pasteFromClipboard,
+                            importQRCodeFromClipboard: importQRCodeFromClipboard,
+                            importSubscription: importSubscription,
                             openStatus: { selectedSection = .status }
                         )
                     case .log:
@@ -324,33 +332,36 @@ struct ContentView: View {
     // MARK: Actions
 
     private func checkURL() {
-        let url = trimmed
+        let result = ProfileImportParser.parse(urlText)
 
-        do {
-            let cfg = try ProxyParser.parse(url)
-            if cfg.isValid {
-                parseInfo = "✅ \(cfg.protoName) · \(cfg.server):\(cfg.port)"
-                    + (cfg.security.isEmpty || cfg.security == "none" ? "" : " · \(cfg.security.uppercased())")
-                    + (cfg.sni.isEmpty ? "" : " · SNI: \(cfg.sni)")
-                    + (cfg.name.isEmpty || cfg.name == cfg.server
-                        ? ""
-                        : "\n\(lang.t("Профиль", "Profile")): \(cfg.name)")
-                parseOK = true
-            } else {
-                parseInfo = "❌ \(lang.t("Ссылка не содержит сервер или порт", "Link has no server or port"))"
-                parseOK = false
-            }
-        } catch {
-            parseInfo = "❌ \(error.localizedDescription)"
+        guard !result.profiles.isEmpty else {
+            parseInfo = result.failures.first.map { "❌ \($0.message)" }
+                ?? "❌ \(lang.t("Поддерживаемые ссылки не найдены", "No supported links found"))"
             parseOK = false
+            return
         }
+
+        if result.profiles.count == 1, let cfg = result.profiles.first {
+            parseInfo = "✅ \(cfg.protoName) · \(cfg.server):\(cfg.port)"
+                + (cfg.security.isEmpty || cfg.security == "none" ? "" : " · \(cfg.security.uppercased())")
+                + (cfg.sni.isEmpty ? "" : " · SNI: \(cfg.sni)")
+                + (cfg.name.isEmpty || cfg.name == cfg.server
+                    ? ""
+                    : "\n\(lang.t("Профиль", "Profile")): \(cfg.name)")
+        } else {
+            let warning = result.failures.isEmpty
+                ? ""
+                : " · \(lang.t("ошибок", "failed")): \(result.failureCount)"
+            parseInfo = "✅ \(lang.t("Профилей найдено", "Profiles found")): \(result.validCount)\(warning)"
+        }
+        parseOK = true
     }
 
     private func connectVPN() {
         if let profile = profileManager.activeProfile {
             vpn.connect(config: profile)
-        } else if !trimmed.isEmpty {
-            vpn.connect(urlString: trimmed)
+        } else if let draftConfig {
+            vpn.connect(config: draftConfig)
         }
     }
 
@@ -386,18 +397,19 @@ struct ContentView: View {
     }
 
     private func saveProfile() {
-        guard var cfg = draftConfig, cfg.isValid else { return }
+        var profiles = ProfileImportParser.parse(urlText).profiles
+        guard !profiles.isEmpty else { return }
         let customName = profileNameText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !customName.isEmpty {
-            cfg.name = customName
+        if profiles.count == 1, !customName.isEmpty {
+            profiles[0].name = customName
         }
-        profileManager.addProfile(cfg)
+        let result = profileManager.addProfiles(profiles)
         urlText = ""
         profileNameText = ""
         parseInfo = ""
         parseOK = false
         isImportExpanded = false
-        toastManager.show(lang.t("Профиль сохранён", "Profile saved"), style: .success)
+        toastManager.show(importToastMessage(result), style: result.addedCount > 0 ? .success : .info)
     }
 
     private func handleStateToast(_ newState: VPNManager.State) {
@@ -431,10 +443,137 @@ struct ContentView: View {
     private func pasteFromClipboard() {
         if let str = NSPasteboard.general.string(forType: .string) {
             let stripped = str.trimmingCharacters(in: .whitespacesAndNewlines)
-            if stripped.hasPrefix("vless://") || stripped.hasPrefix("vmess://")
-                || stripped.hasPrefix("ss://") || stripped.hasPrefix("trojan://") {
+            let parsed = ProfileImportParser.parse(stripped)
+            if !parsed.profiles.isEmpty {
                 urlText = stripped
                 isImportExpanded = true
+                checkURL()
+            }
+        }
+    }
+
+    private func importQRCodeFromClipboard() {
+        guard let message = qrCodeMessageFromClipboard() else {
+            parseInfo = "❌ \(lang.t("QR-код в буфере обмена не найден", "No QR code found in the clipboard"))"
+            parseOK = false
+            toastManager.show(lang.t("QR-код не найден", "QR code not found"), style: .error)
+            return
+        }
+
+        urlText = message
+        isImportExpanded = true
+        checkURL()
+        toastManager.show(lang.t("QR-код прочитан", "QR code decoded"), style: .success)
+    }
+
+    private func importSubscription() {
+        let raw = subscriptionURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            parseInfo = "❌ \(lang.t("Введите HTTP(S) ссылку подписки", "Enter an HTTP(S) subscription URL"))"
+            parseOK = false
+            return
+        }
+
+        isImportingSubscription = true
+        Task {
+            defer { isImportingSubscription = false }
+            do {
+                let text = try await fetchSubscriptionText(from: url)
+                urlText = text
+                let parsed = ProfileImportParser.parse(text)
+                guard !parsed.profiles.isEmpty else {
+                    parseInfo = "❌ \(lang.t("В подписке нет поддерживаемых профилей", "No supported profiles in subscription"))"
+                    parseOK = false
+                    toastManager.show(lang.t("Профили не найдены", "No profiles found"), style: .error)
+                    return
+                }
+
+                let result = profileManager.addProfiles(parsed.profiles)
+                parseInfo = "✅ \(lang.t("Импортировано", "Imported")): \(result.addedCount)"
+                    + (result.skippedDuplicateCount > 0
+                       ? " · \(lang.t("дубликатов", "duplicates")): \(result.skippedDuplicateCount)"
+                       : "")
+                    + (parsed.failureCount > 0
+                       ? " · \(lang.t("ошибок", "failed")): \(parsed.failureCount)"
+                       : "")
+                parseOK = true
+                urlText = ""
+                subscriptionURLText = ""
+                toastManager.show(importToastMessage(result), style: result.addedCount > 0 ? .success : .info)
+            } catch {
+                parseInfo = "❌ \(error.localizedDescription)"
+                parseOK = false
+                toastManager.show(error.localizedDescription, style: .error)
+            }
+        }
+    }
+
+    private func fetchSubscriptionText(from url: URL) async throws -> String {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 20
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse,
+           !(200...299).contains(http.statusCode) {
+            throw SubscriptionImportError.httpStatus(http.statusCode)
+        }
+        guard data.count <= ProfileImportParser.maxInputBytes else {
+            throw SubscriptionImportError.tooLarge
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw SubscriptionImportError.nonUTF8
+        }
+        return text
+    }
+
+    private func qrCodeMessageFromClipboard() -> String? {
+        guard let image = NSImage(pasteboard: NSPasteboard.general),
+              let tiffData = image.tiffRepresentation,
+              let ciImage = CIImage(data: tiffData),
+              let detector = CIDetector(
+                ofType: CIDetectorTypeQRCode,
+                context: nil,
+                options: [CIDetectorAccuracy: CIDetectorAccuracyHigh]
+              ) else {
+            return nil
+        }
+
+        return detector
+            .features(in: ciImage)
+            .compactMap { ($0 as? CIQRCodeFeature)?.messageString }
+            .first
+    }
+
+    private func importToastMessage(_ result: ProfileBatchAddResult) -> String {
+        if result.addedCount == 0, result.skippedDuplicateCount > 0 {
+            return lang.t("Все профили уже добавлены", "All profiles already added")
+        }
+        if result.skippedDuplicateCount > 0 {
+            return lang.t(
+                "Добавлено: \(result.addedCount), дубликатов: \(result.skippedDuplicateCount)",
+                "Added: \(result.addedCount), duplicates: \(result.skippedDuplicateCount)"
+            )
+        }
+        return result.addedCount == 1
+            ? lang.t("Профиль сохранён", "Profile saved")
+            : lang.t("Профилей сохранено: \(result.addedCount)", "Profiles saved: \(result.addedCount)")
+    }
+
+    private enum SubscriptionImportError: LocalizedError {
+        case httpStatus(Int)
+        case tooLarge
+        case nonUTF8
+
+        var errorDescription: String? {
+            let L = LanguageManager.shared
+            switch self {
+            case .httpStatus(let status):
+                return L.t("Подписка вернула HTTP \(status)", "Subscription returned HTTP \(status)")
+            case .tooLarge:
+                return L.t("Подписка слишком большая", "Subscription is too large")
+            case .nonUTF8:
+                return L.t("Подписка не похожа на текст UTF-8", "Subscription is not UTF-8 text")
             }
         }
     }

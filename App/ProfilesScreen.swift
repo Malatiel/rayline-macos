@@ -14,11 +14,15 @@ struct ProfilesScreen: View {
     @Binding var renamingProfileId: UUID?
     @Binding var renameText: String
     @Binding var profileNameText: String
+    @Binding var subscriptionURLText: String
+    let isImportingSubscription: Bool
 
     let displayConfig: ProxyConfig?
     let checkURL: () -> Void
     let saveProfile: () -> Void
     let pasteFromClipboard: () -> Void
+    let importQRCodeFromClipboard: () -> Void
+    let importSubscription: () -> Void
     let openStatus: () -> Void
 
     private var trimmed: String {
@@ -26,7 +30,15 @@ struct ProfilesScreen: View {
     }
 
     private var draftConfig: ProxyConfig? {
-        try? ProxyParser.parse(trimmed)
+        ProfileImportParser.parse(urlText).profiles.first
+    }
+
+    private var draftImport: ProfileImportResult {
+        ProfileImportParser.parse(urlText)
+    }
+
+    private var isBulkImport: Bool {
+        draftImport.profiles.count > 1
     }
 
     private var summary: ProfilesSummary {
@@ -214,11 +226,50 @@ struct ProfilesScreen: View {
 
     private var importPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeaderText(title: lang.t("Импорт ссылки", "Import link"), icon: "link")
+            SectionHeaderText(title: lang.t("Импорт профилей", "Import profiles"), icon: "link")
+
+            VStack(alignment: .leading, spacing: 8) {
+                TextField(
+                    lang.t("HTTPS ссылка подписки", "HTTPS subscription URL"),
+                    text: $subscriptionURLText
+                )
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 13, design: .monospaced))
+
+                HStack(spacing: 10) {
+                    Button {
+                        importSubscription()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isImportingSubscription {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text(lang.t("Импорт...", "Importing..."))
+                            } else {
+                                Label(lang.t("Импорт подписки", "Import subscription"), systemImage: "arrow.down.doc")
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(subscriptionURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isImportingSubscription)
+
+                    Button {
+                        importQRCodeFromClipboard()
+                    } label: {
+                        Label(lang.t("QR из буфера", "QR from clipboard"), systemImage: "qrcode.viewfinder")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+                }
+            }
 
             ZStack(alignment: .topLeading) {
                 if urlText.isEmpty {
-                    Text("vless://  vmess://  ss://  trojan://")
+                    Text(lang.t(
+                        "vless://  vmess://  ss://  trojan://  текст подписки",
+                        "vless://  vmess://  ss://  trojan://  subscription body"
+                    ))
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(.secondary.opacity(0.5))
                         .padding(.horizontal, 10)
@@ -256,15 +307,27 @@ struct ProfilesScreen: View {
             }
 
             if parseOK {
-                HStack(spacing: 8) {
-                    Text(lang.t("Название:", "Name:"))
+                if isBulkImport {
+                    HStack(spacing: 8) {
+                        Image(systemName: "tray.and.arrow.down")
+                        Text(lang.t(
+                            "Будет сохранено профилей: \(draftImport.validCount)",
+                            "Profiles ready to save: \(draftImport.validCount)"
+                        ))
                         .font(.system(size: 13, weight: .medium))
-                    TextField(
-                        draftConfig?.name ?? lang.t("Название профиля", "Profile name"),
-                        text: $profileNameText
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13))
+                    }
+                    .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 8) {
+                        Text(lang.t("Название:", "Name:"))
+                            .font(.system(size: 13, weight: .medium))
+                        TextField(
+                            draftConfig?.name ?? lang.t("Название профиля", "Profile name"),
+                            text: $profileNameText
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13))
+                    }
                 }
             }
 
@@ -280,10 +343,13 @@ struct ProfilesScreen: View {
                 Button {
                     saveProfile()
                 } label: {
-                    Label(lang.t("Сохранить", "Save"), systemImage: "square.and.arrow.down")
+                    Label(
+                        isBulkImport ? lang.t("Сохранить все", "Save all") : lang.t("Сохранить", "Save"),
+                        systemImage: "square.and.arrow.down"
+                    )
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(draftConfig == nil || !parseOK)
+                .disabled(draftImport.profiles.isEmpty || !parseOK)
                 .help(!parseOK && !trimmed.isEmpty
                       ? lang.t("Сначала нажмите «Проверить»", "Press «Check» first")
                       : "")
