@@ -1,6 +1,13 @@
 import Foundation
 import Darwin
 
+struct ProfileSubscriptionSyncResult: Equatable {
+    let addedCount: Int
+    let skippedDuplicateCount: Int
+    let updatedCount: Int
+    let removedCount: Int
+}
+
 @MainActor
 final class ProfileManager: ObservableObject {
 
@@ -102,6 +109,75 @@ final class ProfileManager: ObservableObject {
         return updatedCount
     }
 
+    @discardableResult
+    func syncSubscriptionProfiles(
+        _ configs: [ProxyConfig],
+        sourceId: UUID,
+        sourceName: String
+    ) -> ProfileSubscriptionSyncResult {
+        var addedCount = 0
+        var skippedDuplicateCount = 0
+        var updatedCount = 0
+        var matchedProfileIds = Set<UUID>()
+
+        for config in configs {
+            var incoming = config
+            incoming.sourceId = sourceId
+            incoming.sourceName = sourceName
+
+            if let idx = profiles.firstIndex(where: { $0.hasSameConnection(as: incoming) }) {
+                let existingId = profiles[idx].id
+                matchedProfileIds.insert(existingId)
+                incoming.id = existingId
+
+                if profiles[idx] != incoming {
+                    profiles[idx] = incoming
+                    updatedCount += 1
+                }
+                skippedDuplicateCount += 1
+                continue
+            }
+
+            if profiles.contains(where: { $0.id == incoming.id }) {
+                incoming.id = UUID()
+            }
+            profiles.append(incoming)
+            matchedProfileIds.insert(incoming.id)
+            addedCount += 1
+            if activeProfileId == nil { activeProfileId = incoming.id }
+        }
+
+        let activeProfileWillBeRemoved = activeProfileId.map { activeId in
+            profiles.contains { profile in
+                profile.id == activeId
+                    && isProfileOwnedBySource(profile, sourceId: sourceId, sourceName: sourceName)
+                    && !matchedProfileIds.contains(activeId)
+            }
+        } ?? false
+
+        let beforeRemovalCount = profiles.count
+        profiles.removeAll { profile in
+            isProfileOwnedBySource(profile, sourceId: sourceId, sourceName: sourceName)
+                && !matchedProfileIds.contains(profile.id)
+        }
+        let removedCount = beforeRemovalCount - profiles.count
+
+        if activeProfileWillBeRemoved {
+            activeProfileId = profiles.first?.id
+        }
+
+        if addedCount > 0 || updatedCount > 0 || removedCount > 0 {
+            saveProfiles()
+        }
+
+        return ProfileSubscriptionSyncResult(
+            addedCount: addedCount,
+            skippedDuplicateCount: skippedDuplicateCount,
+            updatedCount: updatedCount,
+            removedCount: removedCount
+        )
+    }
+
     func deleteProfile(id: UUID) {
         profiles.removeAll { $0.id == id }
         if activeProfileId == id {
@@ -127,6 +203,14 @@ final class ProfileManager: ObservableObject {
             activeProfileId = profiles.first?.id
         }
         saveProfiles()
+    }
+
+    private func isProfileOwnedBySource(
+        _ profile: ProxyConfig,
+        sourceId: UUID,
+        sourceName: String
+    ) -> Bool {
+        profile.sourceId == sourceId || profile.sourceName == sourceName
     }
 
     func renameProfile(id: UUID, name: String) {

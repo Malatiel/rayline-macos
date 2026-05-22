@@ -142,6 +142,114 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertTrue(profiles.profiles.isEmpty)
     }
 
+    func testGivenRemoteSubscriptionRemovesProfileWhenRefreshedThenStaleSourceProfileIsDeleted() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/stale",
+            name: "Stale"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000071@keep.example:443?security=tls&type=tcp#Keep
+                vless://00000000-0000-0000-0000-000000000072@drop.example:443?security=tls&type=tcp#Drop
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+        profiles.addProfile(ProxyConfig(
+            proto: .trojan,
+            uuid: "manual-secret",
+            server: "manual.example",
+            port: 443,
+            name: "Manual"
+        ))
+
+        let summary = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000071@keep.example:443?security=tls&type=tcp#Keep
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+
+        XCTAssertEqual(summary.addedCount, 0)
+        XCTAssertEqual(summary.removedCount, 1)
+        XCTAssertEqual(profiles.profiles.map(\.server).sorted(), ["keep.example", "manual.example"])
+        XCTAssertNil(profiles.profiles.first { $0.server == "drop.example" })
+    }
+
+    func testGivenRemoteSubscriptionRenamesExistingConnectionWhenRefreshedThenProfileNameIsUpdated() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/rename",
+            name: "Rename"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000081@same.example:443?security=tls&type=tcp#Old%20name
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+        let existingId = profiles.profiles[0].id
+
+        let summary = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000081@same.example:443?security=tls&type=tcp#New%20name
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+
+        XCTAssertEqual(profiles.profiles.count, 1)
+        XCTAssertEqual(profiles.profiles[0].id, existingId)
+        XCTAssertEqual(profiles.profiles[0].name, "New name")
+        XCTAssertEqual(summary.updatedCount, 1)
+    }
+
+    func testGivenRefreshFailureWithExistingSourceProfilesThenReconciliationDoesNotDeleteThem() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/failure-keeps-local",
+            name: "Failure"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000091@kept.example:443?security=tls&type=tcp#Kept
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+
+        let summary = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in throw SubscriptionFetchError.httpStatus(503) },
+            measureLatency: { _ in nil }
+        )
+
+        XCTAssertEqual(summary.failedCount, 1)
+        XCTAssertEqual(profiles.profiles.map(\.server), ["kept.example"])
+    }
+
     func testGivenSubscriptionProfilesWhenSelectingFastestThenActiveProfileChanges() async throws {
         let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
         let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))

@@ -17,9 +17,33 @@ struct SubscriptionRefreshResult: Equatable {
     let sourceName: String
     let addedCount: Int
     let skippedDuplicateCount: Int
+    let updatedCount: Int
+    let removedCount: Int
     let failedCount: Int
     let fastestProfileName: String?
     let message: String
+
+    init(
+        sourceId: UUID,
+        sourceName: String,
+        addedCount: Int,
+        skippedDuplicateCount: Int,
+        updatedCount: Int = 0,
+        removedCount: Int = 0,
+        failedCount: Int,
+        fastestProfileName: String?,
+        message: String
+    ) {
+        self.sourceId = sourceId
+        self.sourceName = sourceName
+        self.addedCount = addedCount
+        self.skippedDuplicateCount = skippedDuplicateCount
+        self.updatedCount = updatedCount
+        self.removedCount = removedCount
+        self.failedCount = failedCount
+        self.fastestProfileName = fastestProfileName
+        self.message = message
+    }
 }
 
 enum SubscriptionError: LocalizedError, Equatable {
@@ -159,22 +183,23 @@ final class SubscriptionManager: ObservableObject {
                 labeledProfiles[index].sourceName = source.name
             }
 
-            _ = profileManager.attachMatchingProfiles(
+            let syncResult = profileManager.syncSubscriptionProfiles(
                 labeledProfiles,
                 sourceId: source.id,
                 sourceName: source.name
             )
-            let addResult = profileManager.addProfiles(labeledProfiles)
             let fastest = await selectFastestProfile(
                 sourceId: source.id,
                 profileManager: profileManager,
                 measureLatency: measureLatency
             )
-            let message = "Added: \(addResult.addedCount), duplicates: \(addResult.skippedDuplicateCount), failed: \(parsed.failureCount)"
+            let message = "Added: \(syncResult.addedCount), duplicates: \(syncResult.skippedDuplicateCount), updated: \(syncResult.updatedCount), removed: \(syncResult.removedCount), failed: \(parsed.failureCount)"
             return finishRefresh(
                 sourceIndex: idx,
-                added: addResult.addedCount,
-                skipped: addResult.skippedDuplicateCount,
+                added: syncResult.addedCount,
+                skipped: syncResult.skippedDuplicateCount,
+                updated: syncResult.updatedCount,
+                removed: syncResult.removedCount,
                 failed: parsed.failureCount,
                 fastestProfileName: fastest?.name,
                 summary: message
@@ -194,6 +219,8 @@ final class SubscriptionManager: ObservableObject {
         sourceIndex idx: Int,
         added: Int,
         skipped: Int,
+        updated: Int = 0,
+        removed: Int = 0,
         failed: Int,
         fastestProfileName: String? = nil,
         summary: String? = nil,
@@ -209,6 +236,8 @@ final class SubscriptionManager: ObservableObject {
             sourceName: sources[idx].name,
             addedCount: added,
             skippedDuplicateCount: skipped,
+            updatedCount: updated,
+            removedCount: removed,
             failedCount: failed,
             fastestProfileName: fastestProfileName,
             message: error ?? summary ?? ""

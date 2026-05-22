@@ -24,6 +24,8 @@ This project uses semantic versioning where possible:
   clipboard.
 - HTTP(S) subscription sources can now be saved locally, refreshed manually,
   and used to label imported profiles by source.
+- Subscription refresh now reconciles saved profiles with the remote source by
+  updating renamed profiles and removing stale profiles from that subscription.
 
 ## 1.0.9 - 2026-05-21
 

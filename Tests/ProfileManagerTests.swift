@@ -177,7 +177,6 @@ final class ProfileManagerTests: XCTestCase {
     func testAddDuplicateIdGetsNewId() {
         let mgr = makeManager()
         var cfg = sampleConfig(name: "Original")
-        let fixedId = cfg.id
         mgr.addProfile(cfg)
 
         cfg.name = "Duplicate"

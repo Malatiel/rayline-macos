@@ -556,10 +556,12 @@ struct ContentView: View {
 
         parseInfo = "✅ \(result.sourceName): \(lang.t("добавлено", "added")) \(result.addedCount)"
             + " · \(lang.t("дубликатов", "duplicates")) \(result.skippedDuplicateCount)"
+            + (result.updatedCount > 0 ? " · \(lang.t("обновлено", "updated")) \(result.updatedCount)" : "")
+            + (result.removedCount > 0 ? " · \(lang.t("удалено", "removed")) \(result.removedCount)" : "")
             + (result.failedCount > 0 ? " · \(lang.t("ошибок", "failed")) \(result.failedCount)" : "")
         parseOK = true
 
-        if result.addedCount > 0 {
+        if result.addedCount > 0 || result.updatedCount > 0 || result.removedCount > 0 {
             toastManager.show(
                 lang.t("Обновлено: \(result.sourceName)", "Refreshed: \(result.sourceName)"),
                 style: .success
