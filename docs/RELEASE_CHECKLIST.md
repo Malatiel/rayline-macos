@@ -9,6 +9,8 @@ Use this checklist before pushing a release tag.
 - Add a new entry to `CHANGELOG.md`.
 - Confirm GitHub Release artifacts will include `veil-macos-<arch>.zip` and
   `veil-macos-<arch>.zip.sha256`.
+- For release candidates, complete
+  [PREPROD_RELEASE_CHECKLIST.md](PREPROD_RELEASE_CHECKLIST.md) before tagging.
 - Confirm the tag does not already exist:
 
 ```bash
@@ -55,6 +57,8 @@ EXPECTED_VERSION=X.Y.Z EXPECTED_BUILD=N ../scripts/verify_release_artifact.sh ve
 - Review `git status --short`.
 - Review staged changes for personal data, credentials, private keys, logs, and
   machine-specific paths.
+- Complete [MANUAL_GUI_CHECKLIST.md](MANUAL_GUI_CHECKLIST.md) before stable
+  releases and release candidates.
 - Do not commit real proxy links or local sing-box binaries.
 - Confirm generated artifacts remain ignored by `.gitignore`.
 - Confirm local `release/` artifacts are not staged.
@@ -82,3 +86,5 @@ The tag push starts the GitHub release workflow.
 - Launch the app on a test Mac.
 - Open the menu bar window and check import, save profile, settings, logs, and
   quit actions.
+- Confirm known limitations are still accurate in
+  [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).

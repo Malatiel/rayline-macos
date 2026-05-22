@@ -18,11 +18,12 @@ criteria.
 
 - **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions)
 - **Bulk import** — paste multiple proxy links, import base64 subscription bodies, or decode a QR image from the clipboard
-- **Persistent subscriptions** — save HTTP(S) subscription sources, refresh them manually, and keep imported profiles labeled by source
+- **Persistent subscriptions** — save HTTP(S) subscription sources, refresh them manually, keep provider order, and keep imported profiles labeled by source
+- **Subscription reconciliation** — refresh updates renamed profiles, removes stale profiles from that subscription, and fails safely when a subscription returns no valid profiles
 - **Export / copy link** — reconstruct a shareable proxy URL from any saved profile
 - **Auto-connect** — optionally reconnect to the active profile on app launch
 - Supports **VLESS** (TCP / WS / gRPC / HTTP/2, TLS, REALITY), **VMess**, **Shadowsocks** (SIP002 + legacy), **Trojan**
-- Live **TCP latency** display (RTT to the VPN server, updated every 3 s) with manual refresh
+- Live **TCP latency** display for the active connection and cached profile latency states (`ms`, `timeout`, or not checked)
 - Packet sent / received counters
 - **Theme switcher** — system, light, or dark appearance
 - **Toast notifications** — on connect, disconnect, error, and clipboard actions
@@ -52,19 +53,23 @@ criteria.
 
 ## Quick start (pre-built)
 
-1. Download the archive for your Mac from the [latest release](../../releases/latest):
+1. Download the archive for your Mac from the [latest stable release](../../releases/latest), or from the [releases page](../../releases) if you are testing a pre-release:
    - `veil-macos-arm64.zip` for Apple Silicon
    - `veil-macos-x86_64.zip` for Intel
 2. Download the matching `.sha256` file and verify the archive:
    ```bash
    shasum -a 256 -c veil-macos-arm64.zip.sha256
    ```
-3. Unzip and drag `veil.app` to `/Applications`.
+3. Unzip and drag `Veil.app` to `/Applications`.
 4. Open the app — if sing-box is missing, download it automatically or choose a local `sing-box` executable.
 5. Paste a proxy URL, multiple proxy URLs, a subscription body, or add a subscription source from the Profiles tab.
 6. Select a profile and click **Connect**.
 
 > **Gatekeeper prompt:** if you use an unsigned local build, macOS may show an "unidentified developer" warning. Signed and notarized release builds should open normally.
+>
+> **Pre-releases:** release candidates are published for testing and feedback.
+> Check [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) before relying on
+> a pre-release for daily use.
 
 ---
 
@@ -100,6 +105,8 @@ swift test
 Pull requests are expected to keep Swift tests green. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and privacy review steps.
 For release steps, see [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+For release-candidate checks, see
+[docs/PREPROD_RELEASE_CHECKLIST.md](docs/PREPROD_RELEASE_CHECKLIST.md).
 Release archives can be checked locally with:
 
 ```bash
@@ -136,6 +143,7 @@ Veil/
 │   ├── VPNManager.swift        # sing-box lifecycle, proxy settings, TCP ping
 │   ├── ProxyParser.swift       # URL parser, config generator, URL export
 │   ├── ProfileManager.swift    # Multi-profile CRUD, persistence (~/.veil/)
+│   ├── SubscriptionManager.swift # HTTP(S) subscription sources and refresh
 │   ├── StatusSummary.swift     # Presentation model for connection state
 │   ├── ProfilesSummary.swift   # Presentation model for profile state
 │   ├── SettingsSummary.swift   # Presentation model for settings state
@@ -147,7 +155,9 @@ Veil/
 │   └── build.sh                # Build script (downloads sing-box, compiles Swift)
 │
 ├── Tests/
-│   ├── ProxyParserTests.swift  # Swift XCTests (parser, Codable, toURL round-trip)
+│   ├── ProxyParserTests.swift  # Parser, Codable, and toURL round-trip tests
+│   ├── SubscriptionManagerTests.swift # Subscription refresh and latency tests
+│   ├── ProfileManagerTests.swift # Profile persistence and permissions tests
 │   └── shared_test_cases.json  # Parser fixtures
 │
 └── .github/workflows/release.yml  # CI: builds app and publishes releases
@@ -191,6 +201,21 @@ For safe support requests, see [SUPPORT.md](SUPPORT.md).
 
 ---
 
+## Known limitations
+
+- GUI clickability is currently verified manually with
+  [docs/MANUAL_GUI_CHECKLIST.md](docs/MANUAL_GUI_CHECKLIST.md).
+- Latency values are TCP reachability and RTT signals, not throughput
+  benchmarks.
+- Release builds are notarized only when Apple Developer ID credentials are
+  configured in the release workflow.
+- Veil uses sing-box as the production protocol backend and does not ship a
+  self-written production protocol engine.
+
+See [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for the full list.
+
+---
+
 ## Project documents
 
 - [CHANGELOG.md](CHANGELOG.md) — release notes.
@@ -198,6 +223,9 @@ For safe support requests, see [SUPPORT.md](SUPPORT.md).
 - [SECURITY.md](SECURITY.md) — vulnerability reporting and security boundaries.
 - [PRIVACY.md](PRIVACY.md) — local data and log handling.
 - [SUPPORT.md](SUPPORT.md) — safe support request guidance.
+- [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) — current release and testing limitations.
+- [docs/MANUAL_GUI_CHECKLIST.md](docs/MANUAL_GUI_CHECKLIST.md) — manual GUI checks before release.
+- [docs/PREPROD_RELEASE_CHECKLIST.md](docs/PREPROD_RELEASE_CHECKLIST.md) — release-candidate checklist.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common local issues.
 - [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) — release process.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — product direction and planned work.

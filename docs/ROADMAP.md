@@ -56,7 +56,8 @@ backend without that review work.
 
 ### v1.1 User Experience
 
-- Add screenshots and a short demo flow to the README.
+- Complete pre-release GUI checklist and release-candidate validation.
+- Add screenshots and a short demo flow to the README after the UI is stable.
 - Improve connection errors with clearer next actions.
 
 ### v1.2 Profile Management

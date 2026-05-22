@@ -10,6 +10,10 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## 1.1.0-rc.1 - 2026-05-22
+
 ### Added
 
 - GitHub issue templates now warn users not to paste proxy links, UUIDs,
