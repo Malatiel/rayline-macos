@@ -77,8 +77,8 @@ criteria.
 
 ```bash
 # Clone
-git clone https://github.com/Malatiel/veilVPN.git
-cd veilVPN
+git clone https://github.com/Malatiel/proxy_client_VEIL.git
+cd proxy_client_VEIL
 
 # Build the macOS app (uses SING_BOX_BINARY when set, otherwise downloads pinned sing-box)
 cd App && bash build.sh
