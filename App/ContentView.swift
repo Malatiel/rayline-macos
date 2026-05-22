@@ -54,6 +54,7 @@ struct ContentView: View {
     @EnvironmentObject var vpn: VPNManager
     @EnvironmentObject var lang: LanguageManager
     @EnvironmentObject var profileManager: ProfileManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var toastManager: ToastManager
 
     @State private var selectedSection: AppSection = .status
@@ -65,8 +66,9 @@ struct ContentView: View {
     @State private var renamingProfileId: UUID?
     @State private var renameText = ""
     @State private var profileNameText = ""
+    @State private var subscriptionNameText = ""
     @State private var subscriptionURLText = ""
-    @State private var isImportingSubscription = false
+    @State private var refreshingSubscriptionIds: Set<UUID> = []
     @State private var shimmerPhase: CGFloat = 0
     @State private var logSearchText = ""
     @State private var logFilter: LogFilter = .all
@@ -110,6 +112,11 @@ struct ContentView: View {
             previousVpnState = newState
         }
         .onChange(of: profileManager.lastError) { error in
+            if let error {
+                toastManager.show(error, style: .error)
+            }
+        }
+        .onChange(of: subscriptionManager.lastError) { error in
             if let error {
                 toastManager.show(error, style: .error)
             }
@@ -235,14 +242,19 @@ struct ContentView: View {
                             renamingProfileId: $renamingProfileId,
                             renameText: $renameText,
                             profileNameText: $profileNameText,
+                            subscriptionNameText: $subscriptionNameText,
                             subscriptionURLText: $subscriptionURLText,
-                            isImportingSubscription: isImportingSubscription,
+                            refreshingSubscriptionIds: refreshingSubscriptionIds,
                             displayConfig: displayConfig,
                             checkURL: checkURL,
                             saveProfile: saveProfile,
                             pasteFromClipboard: pasteFromClipboard,
                             importQRCodeFromClipboard: importQRCodeFromClipboard,
-                            importSubscription: importSubscription,
+                            addSubscriptionAndRefresh: addSubscriptionAndRefresh,
+                            refreshSubscription: refreshSubscription,
+                            refreshAllSubscriptions: refreshAllSubscriptions,
+                            selectFastestSubscription: selectFastestSubscription,
+                            deleteSubscription: deleteSubscription,
                             openStatus: { selectedSection = .status }
                         )
                     case .log:
@@ -466,65 +478,98 @@ struct ContentView: View {
         toastManager.show(lang.t("QR-код прочитан", "QR code decoded"), style: .success)
     }
 
-    private func importSubscription() {
+    private func addSubscriptionAndRefresh() {
         let raw = subscriptionURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
-            parseInfo = "❌ \(lang.t("Введите HTTP(S) ссылку подписки", "Enter an HTTP(S) subscription URL"))"
+        do {
+            let source = try subscriptionManager.addSource(
+                urlString: raw,
+                name: subscriptionNameText
+            )
+            subscriptionURLText = ""
+            subscriptionNameText = ""
+            refreshSubscription(source.id)
+        } catch {
+            parseInfo = "❌ \(error.localizedDescription)"
             parseOK = false
-            return
+            toastManager.show(error.localizedDescription, style: .error)
         }
+    }
 
-        isImportingSubscription = true
+    private func refreshSubscription(_ sourceId: UUID) {
+        guard !refreshingSubscriptionIds.contains(sourceId) else { return }
+        refreshingSubscriptionIds.insert(sourceId)
         Task {
-            defer { isImportingSubscription = false }
-            do {
-                let text = try await fetchSubscriptionText(from: url)
-                urlText = text
-                let parsed = ProfileImportParser.parse(text)
-                guard !parsed.profiles.isEmpty else {
-                    parseInfo = "❌ \(lang.t("В подписке нет поддерживаемых профилей", "No supported profiles in subscription"))"
-                    parseOK = false
-                    toastManager.show(lang.t("Профили не найдены", "No profiles found"), style: .error)
-                    return
-                }
+            defer { refreshingSubscriptionIds.remove(sourceId) }
+            let result = await subscriptionManager.refresh(
+                sourceId: sourceId,
+                profileManager: profileManager
+            )
+            showSubscriptionRefreshResult(result)
+        }
+    }
 
-                let result = profileManager.addProfiles(parsed.profiles)
-                parseInfo = "✅ \(lang.t("Импортировано", "Imported")): \(result.addedCount)"
-                    + (result.skippedDuplicateCount > 0
-                       ? " · \(lang.t("дубликатов", "duplicates")): \(result.skippedDuplicateCount)"
-                       : "")
-                    + (parsed.failureCount > 0
-                       ? " · \(lang.t("ошибок", "failed")): \(parsed.failureCount)"
-                       : "")
+    private func refreshAllSubscriptions() {
+        for source in subscriptionManager.sources where !refreshingSubscriptionIds.contains(source.id) {
+            refreshSubscription(source.id)
+        }
+    }
+
+    private func selectFastestSubscription(_ sourceId: UUID) {
+        guard !refreshingSubscriptionIds.contains(sourceId) else { return }
+        refreshingSubscriptionIds.insert(sourceId)
+        Task {
+            defer { refreshingSubscriptionIds.remove(sourceId) }
+            if let fastest = await subscriptionManager.selectFastestProfile(
+                sourceId: sourceId,
+                profileManager: profileManager
+            ) {
+                parseInfo = "✅ \(lang.t("Выбран самый быстрый", "Selected fastest")): \(fastest.name)"
                 parseOK = true
-                urlText = ""
-                subscriptionURLText = ""
-                toastManager.show(importToastMessage(result), style: result.addedCount > 0 ? .success : .info)
-            } catch {
-                parseInfo = "❌ \(error.localizedDescription)"
+                toastManager.show(
+                    lang.t("Выбран: \(fastest.name)", "Selected: \(fastest.name)"),
+                    style: .success
+                )
+            } else {
+                let message = lang.t(
+                    "Не удалось измерить доступные профили подписки",
+                    "Could not measure available subscription profiles"
+                )
+                parseInfo = "❌ \(message)"
                 parseOK = false
-                toastManager.show(error.localizedDescription, style: .error)
+                toastManager.show(message, style: .error)
             }
         }
     }
 
-    private func fetchSubscriptionText(from url: URL) async throws -> String {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = 20
+    private func deleteSubscription(_ sourceId: UUID) {
+        subscriptionManager.deleteSource(id: sourceId, profileManager: profileManager)
+        toastManager.show(lang.t("Подписка удалена", "Subscription deleted"), style: .info)
+    }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse,
-           !(200...299).contains(http.statusCode) {
-            throw SubscriptionImportError.httpStatus(http.statusCode)
+    private func showSubscriptionRefreshResult(_ result: SubscriptionRefreshResult) {
+        if result.failedCount > 0, result.addedCount == 0, result.skippedDuplicateCount == 0 {
+            parseInfo = "❌ \(result.message)"
+            parseOK = false
+            toastManager.show(result.message, style: .error)
+            return
         }
-        guard data.count <= ProfileImportParser.maxInputBytes else {
-            throw SubscriptionImportError.tooLarge
+
+        parseInfo = "✅ \(result.sourceName): \(lang.t("добавлено", "added")) \(result.addedCount)"
+            + " · \(lang.t("дубликатов", "duplicates")) \(result.skippedDuplicateCount)"
+            + (result.failedCount > 0 ? " · \(lang.t("ошибок", "failed")) \(result.failedCount)" : "")
+        parseOK = true
+
+        if result.addedCount > 0 {
+            toastManager.show(
+                lang.t("Обновлено: \(result.sourceName)", "Refreshed: \(result.sourceName)"),
+                style: .success
+            )
+        } else {
+            toastManager.show(
+                lang.t("Новых профилей нет", "No new profiles"),
+                style: .info
+            )
         }
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw SubscriptionImportError.nonUTF8
-        }
-        return text
     }
 
     private func qrCodeMessageFromClipboard() -> String? {
@@ -558,24 +603,6 @@ struct ContentView: View {
         return result.addedCount == 1
             ? lang.t("Профиль сохранён", "Profile saved")
             : lang.t("Профилей сохранено: \(result.addedCount)", "Profiles saved: \(result.addedCount)")
-    }
-
-    private enum SubscriptionImportError: LocalizedError {
-        case httpStatus(Int)
-        case tooLarge
-        case nonUTF8
-
-        var errorDescription: String? {
-            let L = LanguageManager.shared
-            switch self {
-            case .httpStatus(let status):
-                return L.t("Подписка вернула HTTP \(status)", "Subscription returned HTTP \(status)")
-            case .tooLarge:
-                return L.t("Подписка слишком большая", "Subscription is too large")
-            case .nonUTF8:
-                return L.t("Подписка не похожа на текст UTF-8", "Subscription is not UTF-8 text")
-            }
-        }
     }
 
     // MARK: Helpers

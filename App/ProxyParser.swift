@@ -22,6 +22,8 @@ struct ProxyConfig: Codable, Identifiable, Equatable {
     var encryption:    String = ""
     var method:        String = ""   // Shadowsocks cipher
     var allowInsecure: Bool   = false
+    var sourceId:      UUID?
+    var sourceName:    String?
 
     var isValid: Bool { !server.isEmpty && (1...65535).contains(port) }
 

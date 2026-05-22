@@ -5,6 +5,7 @@ struct ProfilesScreen: View {
     @EnvironmentObject var vpn: VPNManager
     @EnvironmentObject var lang: LanguageManager
     @EnvironmentObject var profileManager: ProfileManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @EnvironmentObject var toastManager: ToastManager
 
     @Binding var urlText: String
@@ -14,15 +15,20 @@ struct ProfilesScreen: View {
     @Binding var renamingProfileId: UUID?
     @Binding var renameText: String
     @Binding var profileNameText: String
+    @Binding var subscriptionNameText: String
     @Binding var subscriptionURLText: String
-    let isImportingSubscription: Bool
+    let refreshingSubscriptionIds: Set<UUID>
 
     let displayConfig: ProxyConfig?
     let checkURL: () -> Void
     let saveProfile: () -> Void
     let pasteFromClipboard: () -> Void
     let importQRCodeFromClipboard: () -> Void
-    let importSubscription: () -> Void
+    let addSubscriptionAndRefresh: () -> Void
+    let refreshSubscription: (UUID) -> Void
+    let refreshAllSubscriptions: () -> Void
+    let selectFastestSubscription: (UUID) -> Void
+    let deleteSubscription: (UUID) -> Void
     let openStatus: () -> Void
 
     private var trimmed: String {
@@ -39,6 +45,23 @@ struct ProfilesScreen: View {
 
     private var isBulkImport: Bool {
         draftImport.profiles.count > 1
+    }
+
+    private var groupedProfiles: [(title: String, profiles: [ProxyConfig])] {
+        let manualTitle = lang.t("Ручные профили", "Manual profiles")
+        let grouped = Dictionary(grouping: profileManager.profiles) { profile in
+            profile.sourceName?.isEmpty == false ? profile.sourceName! : manualTitle
+        }
+        var result: [(String, [ProxyConfig])] = []
+        if let manual = grouped[manualTitle] {
+            result.append((manualTitle, manual))
+        }
+        for key in grouped.keys.sorted() where key != manualTitle {
+            if let profiles = grouped[key] {
+                result.append((key, profiles))
+            }
+        }
+        return result
     }
 
     private var summary: ProfilesSummary {
@@ -79,6 +102,10 @@ struct ProfilesScreen: View {
                 .buttonStyle(.borderedProminent)
             }
 
+            if !subscriptionManager.sources.isEmpty {
+                subscriptionsPanel
+            }
+
             if summary.isEmpty {
                 PlaceholderPanel(
                     title: summary.emptyTitle,
@@ -86,9 +113,14 @@ struct ProfilesScreen: View {
                     icon: "link.badge.plus"
                 )
             } else {
-                ForEach(profileManager.profiles) { profile in
-                    let row = summary.rows.first { $0.id == profile.id }
-                    profileRowCard(profile, row: row)
+                ForEach(groupedProfiles, id: \.title) { group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionHeaderText(title: group.title, icon: group.title == lang.t("Ручные профили", "Manual profiles") ? "person" : "tray.full")
+                        ForEach(group.profiles) { profile in
+                            let row = summary.rows.first { $0.id == profile.id }
+                            profileRowCard(profile, row: row)
+                        }
+                    }
                 }
             }
 
@@ -105,6 +137,7 @@ struct ProfilesScreen: View {
             displayName: cfg.name.isEmpty ? cfg.server : cfg.name,
             protocolName: cfg.protoName,
             route: "\(cfg.server):\(cfg.port)",
+            sourceLabel: cfg.sourceName,
             isActive: profileManager.activeProfileId == cfg.id,
             activeBadge: lang.t("активный", "active"),
             isDeleteDisabled: false,
@@ -157,6 +190,15 @@ struct ProfilesScreen: View {
                                     .padding(.vertical, 2)
                                     .background(connectedAccent.opacity(0.15), in: Capsule())
                                     .foregroundStyle(connectedAccent)
+                            }
+
+                            if let source = row.sourceLabel, !source.isEmpty {
+                                Label(source, systemImage: "tray.full")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.primary.opacity(0.07), in: Capsule())
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -224,11 +266,109 @@ struct ProfilesScreen: View {
         )
     }
 
+    private var subscriptionsPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionHeaderText(title: lang.t("Подписки", "Subscriptions"), icon: "arrow.clockwise")
+                Spacer()
+                Button {
+                    refreshAllSubscriptions()
+                } label: {
+                    Label(lang.t("Обновить все", "Refresh all"), systemImage: "arrow.clockwise")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.bordered)
+                .disabled(subscriptionManager.sources.isEmpty || !refreshingSubscriptionIds.isEmpty)
+            }
+
+            ForEach(subscriptionManager.sources) { source in
+                subscriptionRow(source)
+            }
+        }
+        .padding(16)
+        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func subscriptionRow(_ source: SubscriptionSource) -> some View {
+        let isRefreshing = refreshingSubscriptionIds.contains(source.id)
+        let hasProfiles = profileManager.profiles.contains { $0.sourceId == source.id || $0.sourceName == source.name }
+        return HStack(spacing: 10) {
+            Button {
+                selectFastestSubscription(source.id)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: isRefreshing ? "arrow.triangle.2.circlepath" : "tray.full")
+                        .frame(width: 18)
+                        .foregroundStyle(isRefreshing ? .orange : .secondary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(source.name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text(source.lastError ?? source.lastSummary ?? source.url)
+                            .font(.system(size: 11))
+                            .foregroundStyle(source.lastError == nil ? Color.secondary : Color.red)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isRefreshing || !hasProfiles)
+
+            Button {
+                selectFastestSubscription(source.id)
+            } label: {
+                Label(lang.t("Быстрый", "Fastest"), systemImage: "bolt")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .disabled(isRefreshing || !hasProfiles)
+
+            Text("·").foregroundStyle(.quaternary)
+
+            Button {
+                refreshSubscription(source.id)
+            } label: {
+                Label(lang.t("Обновить", "Refresh"), systemImage: "arrow.clockwise")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .disabled(isRefreshing)
+
+            Text("·").foregroundStyle(.quaternary)
+
+            Button {
+                deleteSubscription(source.id)
+            } label: {
+                Label(lang.t("Удалить", "Delete"), systemImage: "trash")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.red.opacity(0.65))
+            .disabled(isRefreshing)
+        }
+    }
+
     private var importPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeaderText(title: lang.t("Импорт профилей", "Import profiles"), icon: "link")
 
             VStack(alignment: .leading, spacing: 8) {
+                TextField(
+                    lang.t("Название подписки", "Subscription name"),
+                    text: $subscriptionNameText
+                )
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 13))
+
                 TextField(
                     lang.t("HTTPS ссылка подписки", "HTTPS subscription URL"),
                     text: $subscriptionURLText
@@ -238,10 +378,10 @@ struct ProfilesScreen: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        importSubscription()
+                        addSubscriptionAndRefresh()
                     } label: {
                         HStack(spacing: 6) {
-                            if isImportingSubscription {
+                            if !refreshingSubscriptionIds.isEmpty {
                                 ProgressView()
                                     .controlSize(.small)
                                 Text(lang.t("Импорт...", "Importing..."))
@@ -251,7 +391,7 @@ struct ProfilesScreen: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .disabled(subscriptionURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isImportingSubscription)
+                    .disabled(subscriptionURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !refreshingSubscriptionIds.isEmpty)
 
                     Button {
                         importQRCodeFromClipboard()

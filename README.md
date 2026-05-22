@@ -17,7 +17,8 @@ criteria.
 ## Features
 
 - **Multiple profiles** — save, rename, delete, and switch between proxy profiles (stored locally in `~/.veil/profiles.json` with `0600` permissions)
-- **Bulk import** — paste multiple proxy links, import base64 subscription bodies, import HTTP(S) subscription URLs once, or decode a QR image from the clipboard
+- **Bulk import** — paste multiple proxy links, import base64 subscription bodies, or decode a QR image from the clipboard
+- **Persistent subscriptions** — save HTTP(S) subscription sources, refresh them manually, and keep imported profiles labeled by source
 - **Export / copy link** — reconstruct a shareable proxy URL from any saved profile
 - **Auto-connect** — optionally reconnect to the active profile on app launch
 - Supports **VLESS** (TCP / WS / gRPC / HTTP/2, TLS, REALITY), **VMess**, **Shadowsocks** (SIP002 + legacy), **Trojan**
@@ -60,7 +61,7 @@ criteria.
    ```
 3. Unzip and drag `veil.app` to `/Applications`.
 4. Open the app — if sing-box is missing, download it automatically or choose a local `sing-box` executable.
-5. Paste a proxy URL, multiple proxy URLs, a subscription body, or import a subscription URL from the Profiles tab.
+5. Paste a proxy URL, multiple proxy URLs, a subscription body, or add a subscription source from the Profiles tab.
 6. Select a profile and click **Connect**.
 
 > **Gatekeeper prompt:** if you use an unsigned local build, macOS may show an "unidentified developer" warning. Signed and notarized release builds should open normally.
@@ -174,6 +175,7 @@ history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - **Profile storage**: saved profiles (`~/.veil/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
+- **Subscription storage**: saved subscription URLs (`~/.veil/subscriptions.json`) are written with `0600` permissions. Treat subscription URLs as secrets because they may contain account tokens.
 - The generated sing-box config file (`~/.veil/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
 - **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded port parsing, and validation for supported proxy URL schemes.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).

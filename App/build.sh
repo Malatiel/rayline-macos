@@ -111,6 +111,7 @@ swiftc \
     ThemeManager.swift \
     ToastManager.swift \
     ProfileManager.swift \
+    SubscriptionManager.swift \
     ProfilesSummary.swift \
     SettingsSummary.swift \
     StatusSummary.swift \

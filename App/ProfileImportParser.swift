@@ -121,16 +121,20 @@ extension ProxyConfig {
             && uuid == other.uuid
             && server == other.server
             && port == other.port
-            && security == other.security
-            && network == other.network
+            && normalized(security, defaultValue: "none") == normalized(other.security, defaultValue: "none")
+            && normalized(network, defaultValue: "tcp") == normalized(other.network, defaultValue: "tcp")
             && sni == other.sni
             && host == other.host
-            && path == other.path
+            && normalized(path, defaultValue: "/") == normalized(other.path, defaultValue: "/")
             && fp == other.fp
             && pbk == other.pbk
             && shortId == other.shortId
-            && encryption == other.encryption
+            && normalized(encryption, defaultValue: "none") == normalized(other.encryption, defaultValue: "none")
             && method == other.method
             && allowInsecure == other.allowInsecure
+    }
+
+    private func normalized(_ value: String, defaultValue: String) -> String {
+        value.isEmpty ? defaultValue : value
     }
 }

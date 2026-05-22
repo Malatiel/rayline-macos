@@ -10,6 +10,7 @@ private let menuBarConnectedAccent = connectedAccent
 struct VeilApp: App {
     @StateObject private var vpn            = VPNManager()
     @StateObject private var profileManager = ProfileManager()
+    @StateObject private var subscriptionManager = SubscriptionManager()
     @StateObject private var toastManager   = ToastManager()
     @ObservedObject private var lang  = LanguageManager.shared
     @ObservedObject private var theme = ThemeManager.shared
@@ -20,6 +21,7 @@ struct VeilApp: App {
                 .environmentObject(vpn)
                 .environmentObject(lang)
                 .environmentObject(profileManager)
+                .environmentObject(subscriptionManager)
                 .environmentObject(toastManager)
                 .onAppear {
                     vpn.autoConnectOnLaunchIfNeeded(activeProfile: profileManager.activeProfile)

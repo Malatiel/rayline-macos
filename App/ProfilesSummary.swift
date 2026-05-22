@@ -6,6 +6,7 @@ struct ProfilesSummary {
         let displayName: String
         let protocolName: String
         let route: String
+        let sourceLabel: String?
         let isActive: Bool
         let activeBadge: String
         let isDeleteDisabled: Bool
@@ -56,6 +57,7 @@ struct ProfilesSummary {
                 displayName: profile.name.isEmpty ? profile.server : profile.name,
                 protocolName: profile.protoName,
                 route: "\(profile.server):\(profile.port)",
+                sourceLabel: profile.sourceName,
                 isActive: isActive,
                 activeBadge: activeBadge,
                 isDeleteDisabled: isDeleteDisabled,

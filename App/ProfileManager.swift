@@ -79,9 +79,51 @@ final class ProfileManager: ObservableObject {
         )
     }
 
+    @discardableResult
+    func attachMatchingProfiles(
+        _ configs: [ProxyConfig],
+        sourceId: UUID,
+        sourceName: String
+    ) -> Int {
+        var updatedCount = 0
+        for config in configs {
+            guard let idx = profiles.firstIndex(where: { $0.hasSameConnection(as: config) }) else {
+                continue
+            }
+            if profiles[idx].sourceId != sourceId || profiles[idx].sourceName != sourceName {
+                profiles[idx].sourceId = sourceId
+                profiles[idx].sourceName = sourceName
+                updatedCount += 1
+            }
+        }
+        if updatedCount > 0 {
+            saveProfiles()
+        }
+        return updatedCount
+    }
+
     func deleteProfile(id: UUID) {
         profiles.removeAll { $0.id == id }
         if activeProfileId == id {
+            activeProfileId = profiles.first?.id
+        }
+        saveProfiles()
+    }
+
+    func deleteProfiles(sourceId: UUID, sourceName: String? = nil) {
+        let removedActiveProfile = activeProfileId.map { activeId in
+            profiles.contains { profile in
+                profile.id == activeId && (
+                    profile.sourceId == sourceId
+                        || (sourceName != nil && profile.sourceName == sourceName)
+                )
+            }
+        } ?? false
+        profiles.removeAll { profile in
+            profile.sourceId == sourceId
+                || (sourceName != nil && profile.sourceName == sourceName)
+        }
+        if removedActiveProfile {
             activeProfileId = profiles.first?.id
         }
         saveProfiles()

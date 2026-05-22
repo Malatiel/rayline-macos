@@ -77,6 +77,22 @@ final class ProfilesSummaryTests: XCTestCase {
         XCTAssertFalse(summary.rows[0].isDeleteDisabled)
     }
 
+    func testGivenSubscriptionProfileThenSourceLabelIsExposed() {
+        var config = makeConfig(name: "Edge", server: "edge.example", port: 443)
+        config.sourceName = "Work"
+
+        let summary = ProfilesSummary(
+            profiles: [config],
+            activeProfileId: nil,
+            isImportExpanded: false,
+            importText: "",
+            vpnState: .disconnected,
+            language: .en
+        )
+
+        XCTAssertEqual(summary.rows[0].sourceLabel, "Work")
+    }
+
     private func makeConfig(name: String, server: String, port: Int) -> ProxyConfig {
         ProxyConfig(
             proto: .vless,

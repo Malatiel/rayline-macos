@@ -22,6 +22,8 @@ This project uses semantic versioning where possible:
 - Profiles can now be imported in bulk from multiple links, base64 subscription
   bodies, one-shot HTTP(S) subscription URLs, or QR images copied to the
   clipboard.
+- HTTP(S) subscription sources can now be saved locally, refreshed manually,
+  and used to label imported profiles by source.
 
 ## 1.0.9 - 2026-05-21
 
