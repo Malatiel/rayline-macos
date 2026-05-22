@@ -262,17 +262,18 @@ final class SubscriptionManager: ObservableObject {
         )
     }
 
-    private func fastestProfile(
+    private func measureProfiles(
         from profiles: [ProxyConfig],
         maxConcurrentLatencyChecks: Int = SubscriptionManager.defaultMaxConcurrentLatencyChecks,
         measureLatency: @escaping MeasureLatency
-    ) async -> ProxyConfig? {
+    ) async -> [ProfileLatencyMeasurement] {
         let limit = max(1, maxConcurrentLatencyChecks)
         var nextIndex = 0
         var inFlight = 0
-        var best: (profile: ProxyConfig, latency: Int)?
+        let measuredAt = Date()
+        var measurements: [ProfileLatencyMeasurement] = []
 
-        return await withTaskGroup(of: (ProxyConfig, Int?).self) { group in
+        return await withTaskGroup(of: ProfileLatencyMeasurement.self) { group in
             func scheduleNext() {
                 guard nextIndex < profiles.count else { return }
                 let profile = profiles[nextIndex]
@@ -280,7 +281,11 @@ final class SubscriptionManager: ObservableObject {
                 inFlight += 1
                 group.addTask {
                     let latency = await measureLatency(profile)
-                    return (profile, latency)
+                    return ProfileLatencyMeasurement(
+                        profileId: profile.id,
+                        latencyMs: latency,
+                        measuredAt: measuredAt
+                    )
                 }
             }
 
@@ -288,15 +293,13 @@ final class SubscriptionManager: ObservableObject {
                 scheduleNext()
             }
 
-            while inFlight > 0, let (profile, latency) = await group.next() {
+            while inFlight > 0, let measurement = await group.next() {
                 inFlight -= 1
-                if let latency, best == nil || latency < best!.latency {
-                    best = (profile, latency)
-                }
+                measurements.append(measurement)
                 scheduleNext()
             }
 
-            return best?.profile
+            return measurements
         }
     }
 
@@ -309,11 +312,18 @@ final class SubscriptionManager: ObservableObject {
         }
     ) async -> ProxyConfig? {
         let sourceProfiles = profileManager.profiles.filter { $0.sourceId == sourceId }
-        guard let fastest = await fastestProfile(
+        let measurements = await measureProfiles(
             from: sourceProfiles,
             maxConcurrentLatencyChecks: maxConcurrentLatencyChecks,
             measureLatency: measureLatency
-        ) else {
+        )
+        profileManager.updateLatencyMeasurements(measurements)
+
+        let successfulMeasurements = measurements.compactMap { measurement in
+            measurement.latencyMs.map { (profileId: measurement.profileId, latencyMs: $0) }
+        }
+        guard let best = successfulMeasurements.min(by: { $0.latencyMs < $1.latencyMs }),
+              let fastest = profileManager.profiles.first(where: { $0.id == best.profileId }) else {
             return nil
         }
         profileManager.selectProfile(id: fastest.id)

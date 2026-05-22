@@ -32,6 +32,8 @@ This project uses semantic versioning where possible:
   summaries or errors.
 - Fastest-server selection now measures subscription latency with bounded
   concurrency instead of checking servers one by one.
+- Profile rows now show cached latency states (`ms`, `timeout`, or not checked)
+  while keeping the provider order from the subscription.
 
 ## 1.0.9 - 2026-05-21
 

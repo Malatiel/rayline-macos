@@ -120,6 +120,62 @@ final class ProfileManagerTests: XCTestCase {
         XCTAssertEqual(mgr2.profiles.first?.name, "Persist")
     }
 
+    func testLatencyRoundTripAndTimeoutState() {
+        let mgr1 = makeManager()
+        mgr1.addProfile(sampleConfig(name: "Fast"))
+        mgr1.addProfile(sampleConfig(name: "Timeout"))
+        let fastId = mgr1.profiles[0].id
+        let timeoutId = mgr1.profiles[1].id
+        let measuredAt = Date(timeIntervalSince1970: 1_800_000_000)
+
+        mgr1.updateLatencyMeasurements([
+            ProfileLatencyMeasurement(profileId: fastId, latencyMs: 18, measuredAt: measuredAt),
+            ProfileLatencyMeasurement(profileId: timeoutId, latencyMs: nil, measuredAt: measuredAt)
+        ])
+
+        let mgr2 = makeManager()
+        XCTAssertEqual(mgr2.profiles[0].latencyMs, 18)
+        XCTAssertEqual(mgr2.profiles[0].latencyUpdatedAt, measuredAt)
+        XCTAssertNil(mgr2.profiles[1].latencyMs)
+        XCTAssertEqual(mgr2.profiles[1].latencyUpdatedAt, measuredAt)
+    }
+
+    func testLoadLegacyProfileWithoutLatencyFields() throws {
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        let legacyJSON = """
+        [
+          {
+            "id": "00000000-0000-0000-0000-000000000301",
+            "proto": "vless",
+            "uuid": "legacy-uuid",
+            "server": "legacy.example",
+            "port": 443,
+            "name": "Legacy",
+            "security": "tls",
+            "network": "tcp",
+            "sni": "",
+            "host": "",
+            "path": "/",
+            "fp": "",
+            "pbk": "",
+            "shortId": "",
+            "encryption": "none",
+            "method": "",
+            "allowInsecure": false
+          }
+        ]
+        """
+        try legacyJSON.write(to: tmpDir.appendingPathComponent("profiles.json"), atomically: true, encoding: .utf8)
+
+        let mgr = makeManager()
+
+        XCTAssertEqual(mgr.profiles.count, 1)
+        XCTAssertEqual(mgr.profiles[0].server, "legacy.example")
+        XCTAssertNil(mgr.profiles[0].latencyMs)
+        XCTAssertNil(mgr.profiles[0].latencyUpdatedAt)
+        XCTAssertNil(mgr.lastError)
+    }
+
     func testFilePermissions() {
         let mgr = makeManager()
         mgr.addProfile(sampleConfig())

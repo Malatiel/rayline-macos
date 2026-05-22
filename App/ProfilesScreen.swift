@@ -138,6 +138,7 @@ struct ProfilesScreen: View {
             protocolName: cfg.protoName,
             route: "\(cfg.server):\(cfg.port)",
             sourceLabel: cfg.sourceName,
+            latencyText: cfg.latencyMs.map { "\($0) ms" } ?? (cfg.latencyUpdatedAt == nil ? lang.t("не проверено", "not checked") : "timeout"),
             isActive: profileManager.activeProfileId == cfg.id,
             activeBadge: lang.t("активный", "active"),
             isDeleteDisabled: false,
@@ -181,6 +182,13 @@ struct ProfilesScreen: View {
 
                             Text(row.route)
                                 .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+
+                            Text("·")
+                                .foregroundStyle(.secondary)
+
+                            Label(row.latencyText, systemImage: "speedometer")
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.secondary)
 
                             if row.isActive {

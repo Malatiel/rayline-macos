@@ -63,7 +63,7 @@ backend without that review work.
 
 - Improve subscription conflict handling for duplicate remote entries.
 - Add custom profile groups or folders.
-- Add cached latency refresh and optional sorting.
+- Add manual cached latency refresh controls.
 - Add safer profile export with an explicit confirmation when credentials are
   included.
 

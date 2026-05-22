@@ -7,6 +7,7 @@ struct ProfilesSummary {
         let protocolName: String
         let route: String
         let sourceLabel: String?
+        let latencyText: String
         let isActive: Bool
         let activeBadge: String
         let isDeleteDisabled: Bool
@@ -58,6 +59,7 @@ struct ProfilesSummary {
                 protocolName: profile.protoName,
                 route: "\(profile.server):\(profile.port)",
                 sourceLabel: profile.sourceName,
+                latencyText: Self.latencyText(for: profile, language: language),
                 isActive: isActive,
                 activeBadge: activeBadge,
                 isDeleteDisabled: isDeleteDisabled,
@@ -68,6 +70,16 @@ struct ProfilesSummary {
 
     private static func text(ru: String, en: String, language: AppLanguage) -> String {
         language == .en ? en : ru
+    }
+
+    private static func latencyText(for profile: ProxyConfig, language: AppLanguage) -> String {
+        if let latency = profile.latencyMs {
+            return "\(latency) ms"
+        }
+        if profile.latencyUpdatedAt != nil {
+            return text(ru: "timeout", en: "timeout", language: language)
+        }
+        return text(ru: "не проверено", en: "not checked", language: language)
     }
 }
 

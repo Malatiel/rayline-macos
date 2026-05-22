@@ -8,6 +8,12 @@ struct ProfileSubscriptionSyncResult: Equatable {
     let removedCount: Int
 }
 
+struct ProfileLatencyMeasurement: Equatable {
+    let profileId: UUID
+    let latencyMs: Int?
+    let measuredAt: Date
+}
+
 @MainActor
 final class ProfileManager: ObservableObject {
 
@@ -119,6 +125,10 @@ final class ProfileManager: ObservableObject {
         var skippedDuplicateCount = 0
         var updatedCount = 0
         var matchedProfileIds = Set<UUID>()
+        var orderedProfileIds: [UUID] = []
+        let firstSourceIndex = profiles.firstIndex {
+            isProfileOwnedBySource($0, sourceId: sourceId, sourceName: sourceName)
+        } ?? profiles.count
 
         for config in configs {
             var incoming = config
@@ -128,7 +138,12 @@ final class ProfileManager: ObservableObject {
             if let idx = profiles.firstIndex(where: { $0.hasSameConnection(as: incoming) }) {
                 let existingId = profiles[idx].id
                 matchedProfileIds.insert(existingId)
+                if !orderedProfileIds.contains(existingId) {
+                    orderedProfileIds.append(existingId)
+                }
                 incoming.id = existingId
+                incoming.latencyMs = profiles[idx].latencyMs
+                incoming.latencyUpdatedAt = profiles[idx].latencyUpdatedAt
 
                 if profiles[idx] != incoming {
                     profiles[idx] = incoming
@@ -143,6 +158,9 @@ final class ProfileManager: ObservableObject {
             }
             profiles.append(incoming)
             matchedProfileIds.insert(incoming.id)
+            if !orderedProfileIds.contains(incoming.id) {
+                orderedProfileIds.append(incoming.id)
+            }
             addedCount += 1
             if activeProfileId == nil { activeProfileId = incoming.id }
         }
@@ -161,12 +179,28 @@ final class ProfileManager: ObservableObject {
                 && !matchedProfileIds.contains(profile.id)
         }
         let removedCount = beforeRemovalCount - profiles.count
+        let orderedSourceProfiles = orderedProfileIds.compactMap { id in
+            profiles.first { $0.id == id }
+        }
+        let currentSourceOrder = profiles
+            .filter { isProfileOwnedBySource($0, sourceId: sourceId, sourceName: sourceName) }
+            .map(\.id)
+        let sourceOrderChanged = currentSourceOrder != orderedProfileIds
+        if !orderedSourceProfiles.isEmpty {
+            profiles.removeAll { profile in
+                isProfileOwnedBySource(profile, sourceId: sourceId, sourceName: sourceName)
+            }
+            profiles.insert(
+                contentsOf: orderedSourceProfiles,
+                at: min(firstSourceIndex, profiles.count)
+            )
+        }
 
         if activeProfileWillBeRemoved {
             activeProfileId = profiles.first?.id
         }
 
-        if addedCount > 0 || updatedCount > 0 || removedCount > 0 {
+        if addedCount > 0 || updatedCount > 0 || removedCount > 0 || sourceOrderChanged {
             saveProfiles()
         }
 
@@ -176,6 +210,27 @@ final class ProfileManager: ObservableObject {
             updatedCount: updatedCount,
             removedCount: removedCount
         )
+    }
+
+    func updateLatencyMeasurements(_ measurements: [ProfileLatencyMeasurement]) {
+        guard !measurements.isEmpty else { return }
+        var updated = false
+
+        for measurement in measurements {
+            guard let idx = profiles.firstIndex(where: { $0.id == measurement.profileId }) else {
+                continue
+            }
+            if profiles[idx].latencyMs != measurement.latencyMs
+                || profiles[idx].latencyUpdatedAt != measurement.measuredAt {
+                profiles[idx].latencyMs = measurement.latencyMs
+                profiles[idx].latencyUpdatedAt = measurement.measuredAt
+                updated = true
+            }
+        }
+
+        if updated {
+            saveProfiles()
+        }
     }
 
     func deleteProfile(id: UUID) {

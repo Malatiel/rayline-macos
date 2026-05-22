@@ -80,6 +80,8 @@ final class ProfilesSummaryTests: XCTestCase {
     func testGivenSubscriptionProfileThenSourceLabelIsExposed() {
         var config = makeConfig(name: "Edge", server: "edge.example", port: 443)
         config.sourceName = "Work"
+        config.latencyMs = 18
+        config.latencyUpdatedAt = Date(timeIntervalSince1970: 1_800_000_000)
 
         let summary = ProfilesSummary(
             profiles: [config],
@@ -91,6 +93,24 @@ final class ProfilesSummaryTests: XCTestCase {
         )
 
         XCTAssertEqual(summary.rows[0].sourceLabel, "Work")
+        XCTAssertEqual(summary.rows[0].latencyText, "18 ms")
+    }
+
+    func testGivenUncheckedAndTimedOutProfilesThenLatencyTextExplainsState() {
+        let unchecked = makeConfig(name: "Unchecked", server: "unchecked.example", port: 443)
+        var timeout = makeConfig(name: "Timeout", server: "timeout.example", port: 443)
+        timeout.latencyUpdatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+
+        let summary = ProfilesSummary(
+            profiles: [unchecked, timeout],
+            activeProfileId: nil,
+            isImportExpanded: false,
+            importText: "",
+            vpnState: .disconnected,
+            language: .en
+        )
+
+        XCTAssertEqual(summary.rows.map(\.latencyText), ["not checked", "timeout"])
     }
 
     func testGivenSubscriptionSourceWithLastSummaryThenDisplaySummaryShowsCountsAndRefreshStatus() {

@@ -314,6 +314,8 @@ final class SubscriptionManagerTests: XCTestCase {
 
         XCTAssertEqual(selected?.server, "fast.example")
         XCTAssertEqual(profiles.activeProfile?.server, "fast.example")
+        XCTAssertEqual(profiles.profiles.first { $0.server == "fast.example" }?.latencyMs, 9)
+        XCTAssertEqual(profiles.profiles.first { $0.server == "slow.example" }?.latencyMs, 90)
     }
 
     func testGivenManySubscriptionProfilesWhenSelectingFastestThenLatencyChecksAreBoundedAndConcurrent() async throws {
@@ -353,6 +355,81 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertEqual(selected?.server, "node-6.example")
         XCTAssertGreaterThan(maxConcurrent, 1)
         XCTAssertLessThanOrEqual(maxConcurrent, 3)
+        XCTAssertEqual(profiles.profiles.map(\.server), (0..<8).map { "node-\($0).example" })
+        XCTAssertEqual(profiles.profiles.first { $0.server == "node-6.example" }?.latencyMs, 5)
+    }
+
+    func testGivenSubscriptionSyncUpdatesSameConnectionThenExistingLatencyIsPreserved() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/preserve-latency",
+            name: "Preserve"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000401@same.example:443?security=tls&type=tcp#Old%20name
+                """
+            },
+            measureLatency: { _ in 24 }
+        )
+        let existingId = profiles.profiles[0].id
+        let latencyUpdatedAt = profiles.profiles[0].latencyUpdatedAt
+
+        var updated = ProfileImportParser.parse(
+            "vless://00000000-0000-0000-0000-000000000401@same.example:443?security=tls&type=tcp#New%20name"
+        ).profiles
+        updated[0].sourceId = source.id
+        updated[0].sourceName = source.name
+        profiles.syncSubscriptionProfiles(
+            updated,
+            sourceId: source.id,
+            sourceName: source.name
+        )
+
+        XCTAssertEqual(profiles.profiles.count, 1)
+        XCTAssertEqual(profiles.profiles[0].id, existingId)
+        XCTAssertEqual(profiles.profiles[0].name, "New name")
+        XCTAssertEqual(profiles.profiles[0].latencyMs, 24)
+        XCTAssertEqual(profiles.profiles[0].latencyUpdatedAt, latencyUpdatedAt)
+    }
+
+    func testGivenRemoteSubscriptionReordersProfilesWhenRefreshedThenProviderOrderIsKept() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/reorder",
+            name: "Reorder"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000501@alpha.example:443?security=tls&type=tcp#Alpha
+                vless://00000000-0000-0000-0000-000000000502@beta.example:443?security=tls&type=tcp#Beta
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000502@beta.example:443?security=tls&type=tcp#Beta
+                vless://00000000-0000-0000-0000-000000000501@alpha.example:443?security=tls&type=tcp#Alpha
+                """
+            },
+            measureLatency: { profile in profile.server == "alpha.example" ? 1 : 100 }
+        )
+
+        XCTAssertEqual(profiles.profiles.map(\.server), ["beta.example", "alpha.example"])
+        XCTAssertEqual(profiles.activeProfile?.server, "alpha.example")
     }
 
     func testGivenSubscriptionDeletedThenProfilesFromThatSourceAreDeletedAndManualProfilesRemain() async throws {

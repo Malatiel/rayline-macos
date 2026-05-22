@@ -24,6 +24,8 @@ struct ProxyConfig: Codable, Identifiable, Equatable, Sendable {
     var allowInsecure: Bool   = false
     var sourceId:      UUID?
     var sourceName:    String?
+    var latencyMs:     Int?
+    var latencyUpdatedAt: Date?
 
     var isValid: Bool { !server.isEmpty && (1...65535).contains(port) }
 
