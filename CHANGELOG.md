@@ -10,14 +10,9 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
-### Changed
+No unreleased changes yet.
 
-- Renamed the project and macOS app from Veil to Rayline.
-- Release archives are now named `rayline-macos-<arch>.zip`.
-- New installations use `~/.rayline` for local data while retaining legacy
-  `~/.veil` compatibility when the new directory is not present.
-
-## 1.1.0-rc.1 - 2026-05-22
+## 1.1.0-rc.1 - 2026-05-24
 
 ### Added
 
@@ -43,6 +38,14 @@ This project uses semantic versioning where possible:
   concurrency instead of checking servers one by one.
 - Profile rows now show cached latency states (`ms`, `timeout`, or not checked)
   while keeping the provider order from the subscription.
+- Rayline keeps legacy `~/.veil` local data available when `~/.rayline` does
+  not exist yet, so existing profiles survive the project rename.
+
+### Changed
+
+- Renamed the project and macOS app from Veil to Rayline.
+- Release archives are now named `rayline-macos-<arch>.zip`.
+- New installations use `~/.rayline` for local data.
 
 ## 1.0.9 - 2026-05-21
 

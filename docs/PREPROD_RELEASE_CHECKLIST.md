@@ -51,7 +51,7 @@ ditto -c -k --keepParent /path/to/Rayline.app release/rayline-macos-arm64.zip
 cd release
 shasum -a 256 rayline-macos-arm64.zip > rayline-macos-arm64.zip.sha256
 shasum -a 256 -c rayline-macos-arm64.zip.sha256
-EXPECTED_VERSION=1.1.0 EXPECTED_BUILD=10 ../scripts/verify_release_artifact.sh rayline-macos-arm64.zip
+EXPECTED_VERSION=1.1.0 EXPECTED_BUILD=11 ../scripts/verify_release_artifact.sh rayline-macos-arm64.zip
 ```
 
 Do not commit local `release/` artifacts.
