@@ -10,13 +10,10 @@ build/
 # Built by App/build.sh / CI — not source, contains downloaded sing-box binary
 Rayline.app/
 rayline.app/
-veil.app/
 dist/
 release/
 rayline-macos.zip
 rayline-macos-*.zip
-veil-macos.zip
-veil-macos-*.zip
 
 # ── Claude Code internal settings ─────────────────────────────────────────────
 .claude/

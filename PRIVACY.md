@@ -17,10 +17,6 @@ Rayline may store the following data on your Mac:
 - app preferences in macOS UserDefaults, such as theme, language, auto-connect,
   selected profile id, and custom sing-box path.
 
-If `~/.rayline` does not exist but legacy `~/.veil` data exists from an earlier
-Veil build, Rayline reads that legacy directory so existing profiles and
-subscription sources remain available after the rename.
-
 Profiles, subscription URLs, and generated config files may contain proxy
 credentials or account tokens. These files are intended to be written with
 owner-only permissions.
@@ -60,8 +56,5 @@ Quit Rayline, disconnect first if needed, then remove local app data:
 ```bash
 rm -rf ~/.rayline
 ```
-
-If you previously used Veil and Rayline is still reading legacy data, also
-remove `~/.veil`.
 
 You may also remove Rayline-related preferences from macOS UserDefaults if desired.

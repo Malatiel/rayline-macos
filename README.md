@@ -185,7 +185,7 @@ history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 ## Security notes
 
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
-- **Profile storage**: saved profiles (`~/.rayline/profiles.json`) are written with `0600` permissions — only the owner can read credentials. If `~/.rayline` does not exist but legacy `~/.veil` data exists, Rayline reads the legacy directory for compatibility. No sensitive data is stored in UserDefaults.
+- **Profile storage**: saved profiles (`~/.rayline/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
 - **Subscription storage**: saved subscription URLs (`~/.rayline/subscriptions.json`) are written with `0600` permissions. Treat subscription URLs as secrets because they may contain account tokens.
 - The generated sing-box config file (`~/.rayline/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
 - **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded port parsing, and validation for supported proxy URL schemes.

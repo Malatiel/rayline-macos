@@ -2,31 +2,19 @@ import XCTest
 @testable import RaylineCore
 
 final class AppPathsTests: XCTestCase {
-    func testGivenNoExistingDataDirectoriesThenCurrentRaylineDirectoryIsUsed() {
+    func testGivenHomeDirectoryThenCurrentRaylineDirectoryIsUsed() {
         let home = URL(fileURLWithPath: "/tmp/home", isDirectory: true)
 
-        let selected = AppPaths.dataDirectory(home: home, fileExists: { _ in false })
+        let selected = AppPaths.dataDirectory(home: home)
 
         XCTAssertEqual(selected.lastPathComponent, ".rayline")
     }
 
-    func testGivenLegacyVeilDataAndNoRaylineDataThenLegacyDirectoryIsUsed() {
-        let home = URL(fileURLWithPath: "/tmp/home", isDirectory: true)
+    func testGivenHomeWithTrailingSlashThenRaylineDirectoryIsAppendedOnce() {
+        let home = URL(fileURLWithPath: "/tmp/home/", isDirectory: true)
 
-        let selected = AppPaths.dataDirectory(home: home) { url in
-            url.lastPathComponent == ".veil"
-        }
+        let selected = AppPaths.dataDirectory(home: home)
 
-        XCTAssertEqual(selected.lastPathComponent, ".veil")
-    }
-
-    func testGivenBothLegacyAndCurrentDataThenCurrentRaylineDirectoryWins() {
-        let home = URL(fileURLWithPath: "/tmp/home", isDirectory: true)
-
-        let selected = AppPaths.dataDirectory(home: home) { url in
-            url.lastPathComponent == ".veil" || url.lastPathComponent == ".rayline"
-        }
-
-        XCTAssertEqual(selected.lastPathComponent, ".rayline")
+        XCTAssertEqual(selected.path, "/tmp/home/.rayline")
     }
 }

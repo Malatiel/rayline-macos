@@ -38,12 +38,10 @@ No unreleased changes yet.
   concurrency instead of checking servers one by one.
 - Profile rows now show cached latency states (`ms`, `timeout`, or not checked)
   while keeping the provider order from the subscription.
-- Rayline keeps legacy `~/.veil` local data available when `~/.rayline` does
-  not exist yet, so existing profiles survive the project rename.
 
 ### Changed
 
-- Renamed the project and macOS app from Veil to Rayline.
+- Renamed the project and macOS app to Rayline.
 - Release archives are now named `rayline-macos-<arch>.zip`.
 - New installations use `~/.rayline` for local data.
 
