@@ -21,6 +21,7 @@ let package = Package(
             ],
             sources: [
                 "AppPaths.swift",
+                "Localization.swift",
                 "ProxyParser.swift",
                 "ProfileImportParser.swift",
                 "ProfileManager.swift",
@@ -41,6 +42,7 @@ let package = Package(
             dependencies: ["RaylineCore"],
             path: "Tests",
             sources: [
+                "LocalizationTests.swift",
                 "ProxyParserTests.swift",
                 "ProfileImportParserTests.swift",
                 "ProfileManagerTests.swift",

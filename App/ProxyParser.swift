@@ -41,18 +41,17 @@ struct ProxyConfig: Codable, Identifiable, Equatable, Sendable {
 
 // MARK: - Errors
 
-enum ParseError: LocalizedError {
+enum ParseError: LocalizableError {
     case unknownProtocol, missingAt, invalidPort, base64Failed, noServer
-    var errorDescription: String? {
-        let L = LanguageManager.shared
+    var localizedMessage: LocalizedMessage {
         switch self {
-        case .unknownProtocol: return L.t("Неизвестный протокол (vless/vmess/ss/trojan)",
-                                          "Unknown protocol (vless/vmess/ss/trojan)")
-        case .missingAt:       return L.t("Неверный формат: нет символа @",
-                                          "Invalid format: missing @ symbol")
-        case .invalidPort:     return L.t("Неверный порт", "Invalid port")
-        case .base64Failed:    return L.t("Ошибка декодирования Base64", "Base64 decoding failed")
-        case .noServer:        return L.t("Не указан сервер", "No server specified")
+        case .unknownProtocol: return LocalizedMessage(ru: "Неизвестный протокол (vless/vmess/ss/trojan)",
+                                                       en: "Unknown protocol (vless/vmess/ss/trojan)")
+        case .missingAt:       return LocalizedMessage(ru: "Неверный формат: нет символа @",
+                                                       en: "Invalid format: missing @ symbol")
+        case .invalidPort:     return LocalizedMessage(ru: "Неверный порт", en: "Invalid port")
+        case .base64Failed:    return LocalizedMessage(ru: "Ошибка декодирования Base64", en: "Base64 decoding failed")
+        case .noServer:        return LocalizedMessage(ru: "Не указан сервер", en: "No server specified")
         }
     }
 }

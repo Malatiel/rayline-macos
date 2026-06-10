@@ -806,14 +806,13 @@ final class VPNManager: ObservableObject {
 
 // MARK: - Download error
 
-enum SingBoxDownloadError: LocalizedError {
+enum SingBoxDownloadError: LocalizableError {
     case extractFailed, checksumMismatch
-    var errorDescription: String? {
-        let L = LanguageManager.shared
+    var localizedMessage: LocalizedMessage {
         switch self {
-        case .extractFailed:    return L.t("Ошибка распаковки архива", "Failed to extract archive")
-        case .checksumMismatch: return L.t("Контрольная сумма SHA256 не совпадает — файл повреждён или подменён",
-                                           "SHA256 checksum mismatch — file corrupted or tampered")
+        case .extractFailed:    return LocalizedMessage(ru: "Ошибка распаковки архива", en: "Failed to extract archive")
+        case .checksumMismatch: return LocalizedMessage(ru: "Контрольная сумма SHA256 не совпадает — файл повреждён или подменён",
+                                                        en: "SHA256 checksum mismatch — file corrupted or tampered")
         }
     }
 }

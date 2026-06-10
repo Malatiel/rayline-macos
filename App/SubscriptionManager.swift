@@ -46,43 +46,41 @@ struct SubscriptionRefreshResult: Equatable {
     }
 }
 
-enum SubscriptionError: LocalizedError, Equatable {
+enum SubscriptionError: LocalizableError, Equatable {
     case invalidURL
     case duplicateURL
     case sourceNotFound
 
-    var errorDescription: String? {
-        let L = LanguageManager.shared
+    var localizedMessage: LocalizedMessage {
         switch self {
         case .invalidURL:
-            return L.t("Введите HTTP(S) ссылку подписки", "Enter an HTTP(S) subscription URL")
+            return LocalizedMessage(ru: "Введите HTTP(S) ссылку подписки", en: "Enter an HTTP(S) subscription URL")
         case .duplicateURL:
-            return L.t("Такая подписка уже добавлена", "This subscription is already added")
+            return LocalizedMessage(ru: "Такая подписка уже добавлена", en: "This subscription is already added")
         case .sourceNotFound:
-            return L.t("Подписка не найдена", "Subscription not found")
+            return LocalizedMessage(ru: "Подписка не найдена", en: "Subscription not found")
         }
     }
 }
 
-enum SubscriptionFetchError: LocalizedError, Equatable {
+enum SubscriptionFetchError: LocalizableError, Equatable {
     case httpStatus(Int)
     case tooLarge
     case nonUTF8
     case noValidProfiles
 
-    var errorDescription: String? {
-        let L = LanguageManager.shared
+    var localizedMessage: LocalizedMessage {
         switch self {
         case .httpStatus(let status):
-            return L.t("Подписка вернула HTTP \(status)", "Subscription returned HTTP \(status)")
+            return LocalizedMessage(ru: "Подписка вернула HTTP \(status)", en: "Subscription returned HTTP \(status)")
         case .tooLarge:
-            return L.t("Подписка слишком большая", "Subscription is too large")
+            return LocalizedMessage(ru: "Подписка слишком большая", en: "Subscription is too large")
         case .nonUTF8:
-            return L.t("Подписка не похожа на текст UTF-8", "Subscription is not UTF-8 text")
+            return LocalizedMessage(ru: "Подписка не похожа на текст UTF-8", en: "Subscription is not UTF-8 text")
         case .noValidProfiles:
-            return L.t(
-                "В подписке не найдено валидных профилей",
-                "No valid profiles found in subscription"
+            return LocalizedMessage(
+                ru: "В подписке не найдено валидных профилей",
+                en: "No valid profiles found in subscription"
             )
         }
     }

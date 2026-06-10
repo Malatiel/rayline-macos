@@ -1,9 +1,7 @@
 import Foundation
 import SwiftUI
 
-enum AppLanguage: String {
-    case ru, en
-}
+// `AppLanguage` lives in Localization.swift alongside `LocalizedMessage`.
 
 final class LanguageManager: ObservableObject {
     static let shared = LanguageManager()
