@@ -270,104 +270,175 @@ enum ProxyParser {
 
 // MARK: - sing-box config generation
 
+/// Encodable model of the subset of sing-box configuration Rayline generates.
+/// Using Codable (instead of hand-rolled string concatenation) means JSONEncoder
+/// handles all escaping, so server names, passwords, and paths containing quotes,
+/// slashes, or control characters always produce valid JSON.
+private struct SingBoxConfig: Encodable {
+    let log: Log
+    let inbounds: [Inbound]
+    let outbounds: [Outbound]
+
+    struct Log: Encodable { let level: String }
+
+    struct Inbound: Encodable {
+        let type: String
+        let listen: String
+        let listen_port: Int
+        let sniff: Bool
+        let sniff_override_destination: Bool
+    }
+
+    struct Outbound: Encodable {
+        let type: String
+        let server: String
+        let server_port: Int
+        var uuid: String?       // VLESS / VMess
+        var flow: String?       // VLESS Reality
+        var security: String?   // VMess cipher
+        var method: String?     // Shadowsocks cipher
+        var password: String?   // Shadowsocks / Trojan
+        var tls: TLS?
+        var transport: Transport?
+    }
+
+    struct TLS: Encodable {
+        let enabled: Bool
+        let server_name: String
+        var insecure: Bool?
+        var utls: UTLS?
+        var reality: Reality?
+    }
+
+    struct UTLS: Encodable {
+        let enabled: Bool
+        let fingerprint: String
+    }
+
+    struct Reality: Encodable {
+        let enabled: Bool
+        let public_key: String
+        let short_id: String
+    }
+
+    struct Transport: Encodable {
+        let type: String
+        var path: String?
+        var service_name: String?
+        var headers: [String: String]?
+    }
+}
+
 extension ProxyConfig {
 
     func toSingBoxConfig(socksPort: Int = VPNManager.socksPort) -> String {
-        var j = "{\n"
-        j += "  \"log\": {\"level\": \"info\"},\n"
-        j += "  \"inbounds\": [{\n"
-        j += "    \"type\": \"socks\", \"listen\": \"127.0.0.1\", \"listen_port\": \(socksPort),\n"
-        j += "    \"sniff\": true, \"sniff_override_destination\": true\n"
-        j += "  }],\n"
-        j += "  \"outbounds\": [{\n"
+        let config = SingBoxConfig(
+            log: .init(level: "info"),
+            inbounds: [
+                .init(
+                    type: "socks",
+                    listen: "127.0.0.1",
+                    listen_port: socksPort,
+                    sniff: true,
+                    sniff_override_destination: true
+                )
+            ],
+            outbounds: [singBoxOutbound()]
+        )
 
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(config),
+              let json = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return json
+    }
+
+    private func singBoxOutbound() -> SingBoxConfig.Outbound {
         switch proto {
         case .vless:
-            j += "    \"type\": \"vless\",\n"
-            j += "    \"server\": \"\(esc(server))\", \"server_port\": \(port),\n"
-            j += "    \"uuid\": \"\(esc(uuid))\""
+            var outbound = SingBoxConfig.Outbound(type: "vless", server: server, server_port: port)
+            outbound.uuid = uuid
             let useReality = security == "reality"
-            let useTLS     = security == "tls" || useReality
-            if useReality { j += ",\n    \"flow\": \"xtls-rprx-vision\"" }
+            let useTLS = security == "tls" || useReality
+            if useReality { outbound.flow = "xtls-rprx-vision" }
             if useTLS {
-                j += ",\n    \"tls\": { \"enabled\": true, \"server_name\": \"\(esc(sni.isEmpty ? server : sni))\""
-                if allowInsecure { j += ", \"insecure\": true" }
-                if !fp.isEmpty   { j += ", \"utls\": {\"enabled\": true, \"fingerprint\": \"\(esc(fp))\"}" }
-                if useReality    { j += ", \"reality\": {\"enabled\": true, \"public_key\": \"\(esc(pbk))\", \"short_id\": \"\(esc(shortId))\"}" }
-                j += " }"
+                var tls = SingBoxConfig.TLS(enabled: true, server_name: sni.isEmpty ? server : sni)
+                if allowInsecure { tls.insecure = true }
+                if !fp.isEmpty { tls.utls = .init(enabled: true, fingerprint: fp) }
+                if useReality { tls.reality = .init(enabled: true, public_key: pbk, short_id: shortId) }
+                outbound.tls = tls
             }
-            j += transportBlock()
+            outbound.transport = singBoxTransport()
+            return outbound
 
         case .vmess:
-            j += "    \"type\": \"vmess\",\n"
-            j += "    \"server\": \"\(esc(server))\", \"server_port\": \(port),\n"
-            j += "    \"uuid\": \"\(esc(uuid))\", \"security\": \"\(esc(encryption.isEmpty ? "auto" : encryption))\""
+            var outbound = SingBoxConfig.Outbound(type: "vmess", server: server, server_port: port)
+            outbound.uuid = uuid
+            outbound.security = encryption.isEmpty ? "auto" : encryption
             if security == "tls" {
-                j += ",\n    \"tls\": { \"enabled\": true, \"server_name\": \"\(esc(sni.isEmpty ? server : sni))\" }"
+                outbound.tls = .init(enabled: true, server_name: sni.isEmpty ? server : sni)
             }
-            j += transportBlock()
+            outbound.transport = singBoxTransport()
+            return outbound
 
         case .shadowsocks:
-            j += "    \"type\": \"shadowsocks\",\n"
-            j += "    \"server\": \"\(esc(server))\", \"server_port\": \(port),\n"
-            j += "    \"method\": \"\(esc(method.isEmpty ? "aes-128-gcm" : method))\",\n"
-            j += "    \"password\": \"\(esc(uuid))\""
+            var outbound = SingBoxConfig.Outbound(type: "shadowsocks", server: server, server_port: port)
+            outbound.method = method.isEmpty ? "aes-128-gcm" : method
+            outbound.password = uuid
+            return outbound
 
         case .trojan:
-            j += "    \"type\": \"trojan\",\n"
-            j += "    \"server\": \"\(esc(server))\", \"server_port\": \(port),\n"
-            j += "    \"password\": \"\(esc(uuid))\""
+            var outbound = SingBoxConfig.Outbound(type: "trojan", server: server, server_port: port)
+            outbound.password = uuid
             if security == "tls" || security.isEmpty {
-                j += ",\n    \"tls\": { \"enabled\": true, \"server_name\": \"\(esc(sni.isEmpty ? server : sni))\""
-                if allowInsecure { j += ", \"insecure\": true" }
-                if !fp.isEmpty   { j += ", \"utls\": {\"enabled\": true, \"fingerprint\": \"\(esc(fp))\"}" }
-                j += " }"
+                var tls = SingBoxConfig.TLS(enabled: true, server_name: sni.isEmpty ? server : sni)
+                if allowInsecure { tls.insecure = true }
+                if !fp.isEmpty { tls.utls = .init(enabled: true, fingerprint: fp) }
+                outbound.tls = tls
             }
-            if network == "ws" { j += wsBlock() }
+            // Trojan only carries a WebSocket transport in this client.
+            if network == "ws" { outbound.transport = singBoxWebSocketTransport() }
+            return outbound
         }
-
-        j += "\n  }]\n}\n"
-        return j
     }
 
-    private func transportBlock() -> String {
+    private func singBoxTransport() -> SingBoxConfig.Transport? {
         switch network {
-        case "ws":   return wsBlock()
-        case "grpc": return ",\n    \"transport\": {\"type\": \"grpc\", \"service_name\": \"\(esc(path))\"}"
-        case "h2":   return ",\n    \"transport\": {\"type\": \"http\", \"path\": \"\(esc(path.isEmpty ? "/" : path))\"}"
-        default:     return ""
+        case "ws":   return singBoxWebSocketTransport()
+        case "grpc": return .init(type: "grpc", service_name: path)
+        case "h2":   return .init(type: "http", path: path.isEmpty ? "/" : path)
+        default:     return nil
         }
     }
 
-    private func wsBlock() -> String {
-        var b = ",\n    \"transport\": {\"type\": \"ws\", \"path\": \"\(esc(path.isEmpty ? "/" : path))\""
-        if !host.isEmpty { b += ", \"headers\": {\"Host\": \"\(esc(host))\"}" }
-        b += "}"
-        return b
-    }
-
-    private func esc(_ s: String) -> String {
-        var out = ""
-        for scalar in s.unicodeScalars {
-            switch scalar {
-            case "\"": out += "\\\""
-            case "\\": out += "\\\\"
-            case "\n": out += "\\n"
-            case "\r": out += "\\r"
-            case "\t": out += "\\t"
-            default:
-                if scalar.value < 0x20 {
-                    out += String(format: "\\u%04x", scalar.value)
-                } else {
-                    out += String(scalar)
-                }
-            }
-        }
-        return out
+    private func singBoxWebSocketTransport() -> SingBoxConfig.Transport {
+        var transport = SingBoxConfig.Transport(type: "ws", path: path.isEmpty ? "/" : path)
+        if !host.isEmpty { transport.headers = ["Host": host] }
+        return transport
     }
 }
 
 // MARK: - URL export
+
+/// Encodable model of the legacy VMess share-link JSON payload. All fields are
+/// strings, matching the de-facto VMess link format consumed by `parseVmess`.
+private struct VmessLink: Encodable {
+    let v: String
+    let ps: String
+    let add: String
+    let port: String
+    let id: String
+    let aid: String
+    let net: String
+    let type: String
+    let host: String
+    let path: String
+    let tls: String
+    let sni: String
+    let fp: String
+}
 
 extension ProxyConfig {
 
@@ -399,23 +470,23 @@ extension ProxyConfig {
     }
 
     private func vmessURL() -> String {
-        var j = "{"
-        j += "\"v\":\"2\""
-        j += ",\"ps\":\"\(esc(name))\""
-        j += ",\"add\":\"\(esc(server))\""
-        j += ",\"port\":\"\(port)\""
-        j += ",\"id\":\"\(esc(uuid))\""
-        j += ",\"aid\":\"0\""
-        j += ",\"net\":\"\(esc(network))\""
-        j += ",\"type\":\"none\""
-        j += ",\"host\":\"\(esc(host))\""
-        j += ",\"path\":\"\(esc(path))\""
-        j += ",\"tls\":\"\(esc(security))\""
-        j += ",\"sni\":\"\(esc(sni))\""
-        j += ",\"fp\":\"\(esc(fp))\""
-        j += "}"
-        let b64 = Data(j.utf8).base64EncodedString()
-        return "vmess://\(b64)"
+        let link = VmessLink(
+            v: "2",
+            ps: name,
+            add: server,
+            port: "\(port)",
+            id: uuid,
+            aid: "0",
+            net: network,
+            type: "none",
+            host: host,
+            path: path,
+            tls: security,
+            sni: sni,
+            fp: fp
+        )
+        guard let data = try? JSONEncoder().encode(link) else { return "vmess://" }
+        return "vmess://\(data.base64EncodedString())"
     }
 
     private func ssURL() -> String {

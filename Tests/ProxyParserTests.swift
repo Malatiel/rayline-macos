@@ -293,6 +293,19 @@ final class ProxyParserTests: XCTestCase {
 
     // MARK: - sing-box Config Generation
 
+    /// Decodes the first outbound's TLS block from a generated sing-box config.
+    /// Lets sing-box config tests assert on structure instead of exact JSON
+    /// formatting (which JSONEncoder controls).
+    private func tlsBlock(in singBoxJSON: String) -> [String: Any]? {
+        guard let data = singBoxJSON.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let outbounds = root["outbounds"] as? [[String: Any]],
+              let outbound = outbounds.first else {
+            return nil
+        }
+        return outbound["tls"] as? [String: Any]
+    }
+
     func testSingBoxVlessReality() throws {
         let uuid = "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5"
         let uri = "vless://\(uuid)@reality.server.com:443?security=reality&sni=dl.google.com&pbk=mypublickey123&sid=deadbeef&fp=chrome"
@@ -312,7 +325,7 @@ final class ProxyParserTests: XCTestCase {
         let json = cfg.toSingBoxConfig()
         XCTAssertFalse(json.contains("xtls-rprx-vision"), "TLS-only config must NOT contain xtls-rprx-vision")
         XCTAssertFalse(json.contains("\"reality\""), "TLS-only config must NOT contain reality block")
-        XCTAssertTrue(json.contains("\"enabled\": true"), "TLS config must have enabled:true")
+        XCTAssertEqual(tlsBlock(in: json)?["enabled"] as? Bool, true, "TLS config must have enabled:true")
     }
 
     func testSingBoxVlessWebSocket() throws {
@@ -343,7 +356,7 @@ final class ProxyParserTests: XCTestCase {
         let json = cfg.toSingBoxConfig()
         XCTAssertTrue(json.contains("\"vmess\""), "VMess config must have type vmess")
         XCTAssertTrue(json.contains("\"security\""), "VMess config must contain security field")
-        XCTAssertTrue(json.contains("\"enabled\": true"), "VMess TLS config must have enabled:true")
+        XCTAssertEqual(tlsBlock(in: json)?["enabled"] as? Bool, true, "VMess TLS config must have enabled:true")
     }
 
     func testSingBoxShadowsocks() throws {
@@ -364,14 +377,14 @@ final class ProxyParserTests: XCTestCase {
         let json = cfg.toSingBoxConfig()
         XCTAssertTrue(json.contains("\"trojan\""), "Trojan config must have type trojan")
         XCTAssertTrue(json.contains("\"password\""), "Trojan config must contain password field")
-        XCTAssertTrue(json.contains("\"enabled\": true"), "Trojan TLS config must have enabled:true")
+        XCTAssertEqual(tlsBlock(in: json)?["enabled"] as? Bool, true, "Trojan TLS config must have enabled:true")
     }
 
     func testSingBoxTrojanNoSecurityStillGetsTLS() throws {
         // Trojan default security is "tls" — should still generate TLS block
         let cfg = try ProxyParser.parse("trojan://pw@trojan.io:443")
         let json = cfg.toSingBoxConfig()
-        XCTAssertTrue(json.contains("\"enabled\": true"), "Trojan with default security must still get TLS block")
+        XCTAssertEqual(tlsBlock(in: json)?["enabled"] as? Bool, true, "Trojan with default security must still get TLS block")
     }
 
     func testSingBoxAlwaysContainsSocks5Inbound() throws {
@@ -419,6 +432,20 @@ final class ProxyParserTests: XCTestCase {
         let data = jsonString.data(using: .utf8)!
         // Must be valid JSON despite the quote in the password
         XCTAssertNoThrow(try JSONSerialization.jsonObject(with: data), "JSON with escaped quote in password must be valid")
+    }
+
+    func testSingBoxConfigEscapesAndPreservesSpecialCharsInPassword() throws {
+        // A password with a quote and a backslash must produce valid JSON AND
+        // decode back to the exact original value — proving JSONEncoder escaping
+        // is both safe and lossless (the win over hand-rolled string building).
+        let rawPassword = #"pa"ss\word"#
+        let userinfo = Data("aes-256-gcm:\(rawPassword)".utf8).base64EncodedString()
+        let cfg = try ProxyParser.parse("ss://\(userinfo)@s.io:8388")
+
+        let data = Data(cfg.toSingBoxConfig().utf8)
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let outbounds = try XCTUnwrap(root["outbounds"] as? [[String: Any]])
+        XCTAssertEqual(outbounds.first?["password"] as? String, rawPassword)
     }
 
     // MARK: - Whitespace / newline stripping (regression)
