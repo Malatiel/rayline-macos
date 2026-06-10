@@ -105,29 +105,7 @@ swiftc \
     -framework AppKit \
     -framework Foundation \
     -framework CoreImage \
-    AppPaths.swift \
-    Localization.swift \
-    TCPProbe.swift \
-    ProxyParser.swift \
-    ProfileImportParser.swift \
-    LanguageManager.swift \
-    ThemeManager.swift \
-    ToastManager.swift \
-    ProfileManager.swift \
-    SubscriptionManager.swift \
-    ProfilesSummary.swift \
-    SettingsSummary.swift \
-    StatusSummary.swift \
-    LifecycleRecovery.swift \
-    DiagnosticExporter.swift \
-    VPNManager.swift \
-    SharedViews.swift \
-    ContentView.swift \
-    LogScreen.swift \
-    ProfilesScreen.swift \
-    StatusScreen.swift \
-    SettingsScreen.swift \
-    RaylineApp.swift \
+    *.swift \
     -o "$MACOS/rayline"
 
 sign_path() {

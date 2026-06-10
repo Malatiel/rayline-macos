@@ -8,6 +8,11 @@ let package = Package(
         .target(
             name: "RaylineCore",
             path: "App",
+            // Exclude-only: every App/*.swift is part of the testable core EXCEPT
+            // the SwiftUI layer listed here (which needs SwiftUI/AppKit and is not
+            // unit-tested). New core files are picked up automatically; only a new
+            // UI file needs to be added below. This is the single source of truth
+            // for the core/UI split — build.sh compiles the whole App/ directory.
             exclude: [
                 "ContentView.swift",
                 "Info.plist",
@@ -18,24 +23,6 @@ let package = Package(
                 "StatusScreen.swift",
                 "RaylineApp.swift",
                 "build.sh"
-            ],
-            sources: [
-                "AppPaths.swift",
-                "Localization.swift",
-                "TCPProbe.swift",
-                "ProxyParser.swift",
-                "ProfileImportParser.swift",
-                "ProfileManager.swift",
-                "SubscriptionManager.swift",
-                "ProfilesSummary.swift",
-                "SettingsSummary.swift",
-                "StatusSummary.swift",
-                "LifecycleRecovery.swift",
-                "DiagnosticExporter.swift",
-                "LanguageManager.swift",
-                "VPNManager.swift",
-                "ToastManager.swift",
-                "ThemeManager.swift"
             ]
         ),
         .testTarget(
