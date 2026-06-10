@@ -1,6 +1,5 @@
 import Foundation
 import Darwin
-import Network
 
 struct SubscriptionSource: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
@@ -426,55 +425,7 @@ enum SubscriptionContentFetcher {
 
 enum SubscriptionLatencyMeasurer {
     static func measure(_ profile: ProxyConfig) async -> Int? {
-        await withCheckedContinuation { continuation in
-            let start = Date()
-            let conn = NWConnection(
-                host: NWEndpoint.Host(profile.server),
-                port: NWEndpoint.Port(rawValue: UInt16(profile.port))!,
-                using: .tcp
-            )
-            let resumeBox = LatencyResumeBox(connection: conn, continuation: continuation)
-
-            conn.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    resumeBox.finish(Int(Date().timeIntervalSince(start) * 1000))
-                case .failed, .cancelled:
-                    resumeBox.finish(nil)
-                default:
-                    break
-                }
-            }
-            conn.start(queue: .global(qos: .utility))
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2.0) {
-                resumeBox.finish(nil)
-            }
-        }
-    }
-}
-
-private final class LatencyResumeBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var didResume = false
-    private let connection: NWConnection
-    private let continuation: CheckedContinuation<Int?, Never>
-
-    init(connection: NWConnection, continuation: CheckedContinuation<Int?, Never>) {
-        self.connection = connection
-        self.continuation = continuation
-    }
-
-    func finish(_ value: Int?) {
-        lock.lock()
-        guard !didResume else {
-            lock.unlock()
-            return
-        }
-        didResume = true
-        lock.unlock()
-
-        connection.cancel()
-        continuation.resume(returning: value)
+        await TCPProbe.measure(host: profile.server, port: profile.port, timeout: 2.0)
     }
 }
 

@@ -1,6 +1,5 @@
 import Foundation
 import AppKit
-import Network
 import CommonCrypto
 import Darwin
 
@@ -549,28 +548,13 @@ final class VPNManager: ObservableObject {
 
     private func measureRTT(host: String, port: Int) {
         packetsSent += 1
-        let conn = NWConnection(
-            to: .hostPort(host: NWEndpoint.Host(host),
-                          port: NWEndpoint.Port(integerLiteral: UInt16(port))),
-            using: .tcp)
-        let t0 = Date()
-        conn.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                let ms = Int(Date().timeIntervalSince(t0) * 1000)
-                DispatchQueue.main.async {
-                    self?.pingMs = ms
-                    self?.packetsRecv += 1
-                    self?.lastPingUpdate = Date()
-                }
-                conn.cancel()
-            case .failed:
-                conn.cancel()
-            default: break
-            }
+        Task { [weak self] in
+            let ms = await TCPProbe.measure(host: host, port: port, timeout: 2.0)
+            guard let self, let ms else { return }
+            self.pingMs = ms
+            self.packetsRecv += 1
+            self.lastPingUpdate = Date()
         }
-        conn.start(queue: .global(qos: .background))
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { conn.cancel() }
     }
 
     // MARK: - Helpers
@@ -579,42 +563,9 @@ final class VPNManager: ObservableObject {
     private func waitForSocksPort(timeout: Double, process proc: Process) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline && proc.isRunning {
-            let ok = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-                let conn = NWConnection(
-                    to: .hostPort(host: "127.0.0.1",
-                                  port: NWEndpoint.Port(integerLiteral: UInt16(Self.socksPort))),
-                    using: .tcp)
-                final class ResumeOnce: @unchecked Sendable {
-                    private let lock = NSLock()
-                    private var resumed = false
-                    private let cont: CheckedContinuation<Bool, Never>
-                    init(_ cont: CheckedContinuation<Bool, Never>) { self.cont = cont }
-                    func callAsFunction(_ value: Bool) {
-                        lock.lock()
-                        defer { lock.unlock() }
-                        guard !resumed else { return }
-                        resumed = true
-                        cont.resume(returning: value)
-                    }
-                }
-                let resumeOnce = ResumeOnce(cont)
-
-                conn.stateUpdateHandler = { state in
-                    switch state {
-                    case .ready:
-                        conn.cancel()
-                        resumeOnce(true)
-                    case .failed, .cancelled:
-                        resumeOnce(false)
-                    default: break
-                    }
-                }
-                conn.start(queue: .global(qos: .utility))
-                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-                    conn.cancel()
-                }
+            if await TCPProbe.measure(host: "127.0.0.1", port: Self.socksPort, timeout: 0.5) != nil {
+                return true
             }
-            if ok { return true }
             try? await Task.sleep(nanoseconds: 200_000_000)
         }
         return false

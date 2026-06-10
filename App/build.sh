@@ -107,6 +107,7 @@ swiftc \
     -framework CoreImage \
     AppPaths.swift \
     Localization.swift \
+    TCPProbe.swift \
     ProxyParser.swift \
     ProfileImportParser.swift \
     LanguageManager.swift \
