@@ -49,6 +49,14 @@ final class VPNManager: ObservableObject {
     nonisolated static let socksPort: Int = 10808
     nonisolated static let customSingBoxPathKey = "customSingBoxPath"
 
+    // Connection timing, in seconds. Centralised so they are easy to find and
+    // tune rather than scattered as literals across the connect/ping paths.
+    nonisolated static let socksReadyTimeout: TimeInterval = 5.0   // total wait for sing-box to open the SOCKS port
+    nonisolated static let socksProbeTimeout: TimeInterval = 0.5   // per-attempt TCP connect timeout while polling
+    nonisolated static let socksPollInterval: TimeInterval = 0.2   // delay between readiness attempts
+    nonisolated static let pingInterval: TimeInterval = 3.0        // how often the connected-state RTT refreshes
+    nonisolated static let pingTimeout: TimeInterval = 2.0         // per-ping TCP connect timeout
+
     // Directory where we install sing-box
     nonisolated static let installDir: URL = AppPaths.defaultDataDir
 
@@ -243,7 +251,7 @@ final class VPNManager: ObservableObject {
         // Start tailing the log file so sing-box output appears in UI
         startLogTail(path: logFile)
 
-        let ready = await waitForSocksPort(timeout: 5.0, process: proc)
+        let ready = await waitForSocksPort(timeout: Self.socksReadyTimeout, process: proc)
         guard isCurrentConnect(generation) else {
             cleanupCancelledConnect(process: proc)
             return
@@ -258,8 +266,8 @@ final class VPNManager: ObservableObject {
         guard ready else {
             stopProcess()
             stopLogTail()
-            setState(.error(L.t("sing-box не открыл порт \(Self.socksPort) за 5 сек",
-                                "sing-box did not open port \(Self.socksPort) within 5 sec")))
+            setState(.error(L.t("sing-box не открыл порт \(Self.socksPort) за \(Int(Self.socksReadyTimeout)) сек",
+                                "sing-box did not open port \(Self.socksPort) within \(Int(Self.socksReadyTimeout)) sec")))
             return
         }
 
@@ -531,7 +539,7 @@ final class VPNManager: ObservableObject {
     private func startPing(host: String, port: Int) {
         stopPing()
         measureRTT(host: host, port: port)
-        pingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+        pingTimer = Timer.scheduledTimer(withTimeInterval: Self.pingInterval, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.measureRTT(host: host, port: port) }
         }
     }
@@ -549,7 +557,7 @@ final class VPNManager: ObservableObject {
     private func measureRTT(host: String, port: Int) {
         packetsSent += 1
         Task { [weak self] in
-            let ms = await TCPProbe.measure(host: host, port: port, timeout: 2.0)
+            let ms = await TCPProbe.measure(host: host, port: port, timeout: Self.pingTimeout)
             guard let self, let ms else { return }
             self.pingMs = ms
             self.packetsRecv += 1
@@ -563,10 +571,10 @@ final class VPNManager: ObservableObject {
     private func waitForSocksPort(timeout: Double, process proc: Process) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline && proc.isRunning {
-            if await TCPProbe.measure(host: "127.0.0.1", port: Self.socksPort, timeout: 0.5) != nil {
+            if await TCPProbe.measure(host: "127.0.0.1", port: Self.socksPort, timeout: Self.socksProbeTimeout) != nil {
                 return true
             }
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(Self.socksPollInterval * 1_000_000_000))
         }
         return false
     }
