@@ -206,7 +206,10 @@ final class SubscriptionManager: ObservableObject {
                 sourceId: source.id,
                 sourceName: source.name
             )
-            let fastest = await selectFastestProfile(
+            // Refresh records latency and reports the fastest profile, but must
+            // not change the user's active selection — that is reserved for the
+            // explicit "select fastest" action (selectFastestProfile).
+            let fastest = await measureFastestProfile(
                 sourceId: source.id,
                 profileManager: profileManager,
                 measureLatency: measureLatency
@@ -303,7 +306,11 @@ final class SubscriptionManager: ObservableObject {
         }
     }
 
-    func selectFastestProfile(
+    /// Measures latency for every profile of a source, records the results, and
+    /// returns the lowest-latency profile **without** changing the active
+    /// selection. Used by refresh, which should report (but not impose) the
+    /// fastest profile.
+    func measureFastestProfile(
         sourceId: UUID,
         profileManager: ProfileManager,
         maxConcurrentLatencyChecks: Int = SubscriptionManager.defaultMaxConcurrentLatencyChecks,
@@ -322,8 +329,29 @@ final class SubscriptionManager: ObservableObject {
         let successfulMeasurements = measurements.compactMap { measurement in
             measurement.latencyMs.map { (profileId: measurement.profileId, latencyMs: $0) }
         }
-        guard let best = successfulMeasurements.min(by: { $0.latencyMs < $1.latencyMs }),
-              let fastest = profileManager.profiles.first(where: { $0.id == best.profileId }) else {
+        guard let best = successfulMeasurements.min(by: { $0.latencyMs < $1.latencyMs }) else {
+            return nil
+        }
+        return profileManager.profiles.first(where: { $0.id == best.profileId })
+    }
+
+    /// Measures latency and switches the active profile to the fastest one.
+    /// Triggered only by the explicit "select fastest" user action.
+    @discardableResult
+    func selectFastestProfile(
+        sourceId: UUID,
+        profileManager: ProfileManager,
+        maxConcurrentLatencyChecks: Int = SubscriptionManager.defaultMaxConcurrentLatencyChecks,
+        measureLatency: @escaping MeasureLatency = { profile in
+            await SubscriptionLatencyMeasurer.measure(profile)
+        }
+    ) async -> ProxyConfig? {
+        guard let fastest = await measureFastestProfile(
+            sourceId: sourceId,
+            profileManager: profileManager,
+            maxConcurrentLatencyChecks: maxConcurrentLatencyChecks,
+            measureLatency: measureLatency
+        ) else {
             return nil
         }
         profileManager.selectProfile(id: fastest.id)

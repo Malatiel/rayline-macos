@@ -74,7 +74,7 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertNil(subscriptions.sources.first?.lastError)
     }
 
-    func testGivenSubscriptionRefreshWhenLatencyIsMeasuredThenFastestProfileBecomesActive() async throws {
+    func testGivenSubscriptionRefreshWhenLatencyIsMeasuredThenFastestIsReportedButActiveIsUnchanged() async throws {
         let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
         let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
         let source = try subscriptions.addSource(
@@ -101,8 +101,49 @@ final class SubscriptionManagerTests: XCTestCase {
             }
         )
 
+        // Refresh reports the fastest profile and records latency, but must not
+        // override the user's active selection (first imported profile here).
         XCTAssertEqual(summary.fastestProfileName, "Fast")
-        XCTAssertEqual(profiles.activeProfile?.server, "fast.example")
+        XCTAssertEqual(profiles.activeProfile?.server, "slow.example")
+        XCTAssertEqual(profiles.profiles.first { $0.server == "fast.example" }?.latencyMs, 18)
+        XCTAssertEqual(profiles.profiles.first { $0.server == "slow.example" }?.latencyMs, 120)
+    }
+
+    func testGivenUserSelectedProfileWhenSubscriptionRefreshesThenActiveSelectionIsPreserved() async throws {
+        let subscriptions = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try subscriptions.addSource(
+            urlString: "https://subscriptions.example/preserve-active",
+            name: "Preserve"
+        )
+        _ = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000111@slow.example:443?security=tls&type=tcp#Slow
+                vless://00000000-0000-0000-0000-000000000112@fast.example:443?security=tls&type=tcp#Fast
+                """
+            },
+            measureLatency: { _ in nil }
+        )
+        // The user deliberately picks the slower node.
+        profiles.selectProfile(id: profiles.profiles.first { $0.server == "slow.example" }!.id)
+
+        let summary = await subscriptions.refresh(
+            sourceId: source.id,
+            profileManager: profiles,
+            fetch: { _ in
+                """
+                vless://00000000-0000-0000-0000-000000000111@slow.example:443?security=tls&type=tcp#Slow
+                vless://00000000-0000-0000-0000-000000000112@fast.example:443?security=tls&type=tcp#Fast
+                """
+            },
+            measureLatency: { profile in profile.server == "fast.example" ? 5 : 99 }
+        )
+
+        XCTAssertEqual(summary.fastestProfileName, "Fast")
+        XCTAssertEqual(profiles.activeProfile?.server, "slow.example")
     }
 
     func testGivenExistingManualDuplicateWhenSubscriptionRefreshesThenProfileIsAttachedToSource() async throws {
