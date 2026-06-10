@@ -434,6 +434,44 @@ final class ProxyParserTests: XCTestCase {
         XCTAssertNoThrow(try JSONSerialization.jsonObject(with: data), "JSON with escaped quote in password must be valid")
     }
 
+    func testSingBoxConfigDecodesToExpectedStructureForVlessRealityWebSocket() throws {
+        // Golden structural check: substring assertions are position-insensitive
+        // (they would still pass if public_key/short_id were swapped or fields
+        // re-nested). Decode the full outbound and assert exact placement of the
+        // flow, TLS, uTLS, Reality, and WebSocket-transport blocks.
+        let uuid = "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5"
+        let uri = "vless://\(uuid)@srv.example:443?security=reality&sni=dl.google.com&pbk=PUBKEY&sid=SHORTID&fp=chrome&type=ws&path=%2Fwspath&host=cdn.example"
+        let cfg = try ProxyParser.parse(uri)
+
+        let data = Data(cfg.toSingBoxConfig().utf8)
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let outbound = try XCTUnwrap((root["outbounds"] as? [[String: Any]])?.first)
+
+        XCTAssertEqual(outbound["type"] as? String, "vless")
+        XCTAssertEqual(outbound["server"] as? String, "srv.example")
+        XCTAssertEqual(outbound["server_port"] as? Int, 443)
+        XCTAssertEqual(outbound["uuid"] as? String, uuid)
+        XCTAssertEqual(outbound["flow"] as? String, "xtls-rprx-vision")
+
+        let tls = try XCTUnwrap(outbound["tls"] as? [String: Any])
+        XCTAssertEqual(tls["enabled"] as? Bool, true)
+        XCTAssertEqual(tls["server_name"] as? String, "dl.google.com")
+
+        let utls = try XCTUnwrap(tls["utls"] as? [String: Any])
+        XCTAssertEqual(utls["enabled"] as? Bool, true)
+        XCTAssertEqual(utls["fingerprint"] as? String, "chrome")
+
+        let reality = try XCTUnwrap(tls["reality"] as? [String: Any])
+        XCTAssertEqual(reality["enabled"] as? Bool, true)
+        XCTAssertEqual(reality["public_key"] as? String, "PUBKEY")
+        XCTAssertEqual(reality["short_id"] as? String, "SHORTID")
+
+        let transport = try XCTUnwrap(outbound["transport"] as? [String: Any])
+        XCTAssertEqual(transport["type"] as? String, "ws")
+        XCTAssertEqual(transport["path"] as? String, "/wspath")
+        XCTAssertEqual((transport["headers"] as? [String: Any])?["Host"] as? String, "cdn.example")
+    }
+
     func testSingBoxConfigEscapesAndPreservesSpecialCharsInPassword() throws {
         // A password with a quote and a backslash must produce valid JSON AND
         // decode back to the exact original value — proving JSONEncoder escaping
