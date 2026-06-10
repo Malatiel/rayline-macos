@@ -344,29 +344,12 @@ struct ContentView: View {
     // MARK: Actions
 
     private func checkURL() {
-        let result = ProfileImportParser.parse(urlText)
-
-        guard !result.profiles.isEmpty else {
-            parseInfo = result.failures.first.map { "❌ \($0.message)" }
-                ?? "❌ \(lang.t("Поддерживаемые ссылки не найдены", "No supported links found"))"
-            parseOK = false
-            return
-        }
-
-        if result.profiles.count == 1, let cfg = result.profiles.first {
-            parseInfo = "✅ \(cfg.protoName) · \(cfg.server):\(cfg.port)"
-                + (cfg.security.isEmpty || cfg.security == "none" ? "" : " · \(cfg.security.uppercased())")
-                + (cfg.sni.isEmpty ? "" : " · SNI: \(cfg.sni)")
-                + (cfg.name.isEmpty || cfg.name == cfg.server
-                    ? ""
-                    : "\n\(lang.t("Профиль", "Profile")): \(cfg.name)")
-        } else {
-            let warning = result.failures.isEmpty
-                ? ""
-                : " · \(lang.t("ошибок", "failed")): \(result.failureCount)"
-            parseInfo = "✅ \(lang.t("Профилей найдено", "Profiles found")): \(result.validCount)\(warning)"
-        }
-        parseOK = true
+        let banner = ContentFeedback.importPreview(
+            ProfileImportParser.parse(urlText),
+            language: lang.language
+        )
+        parseInfo = banner.text
+        parseOK = banner.ok
     }
 
     private func connectVPN() {
@@ -421,7 +404,10 @@ struct ContentView: View {
         parseInfo = ""
         parseOK = false
         isImportExpanded = false
-        toastManager.show(importToastMessage(result), style: result.addedCount > 0 ? .success : .info)
+        toastManager.show(
+            ContentFeedback.importToast(result, language: lang.language),
+            style: result.addedCount > 0 ? .success : .info
+        )
     }
 
     private func handleStateToast(_ newState: VPNManager.State) {
@@ -547,31 +533,10 @@ struct ContentView: View {
     }
 
     private func showSubscriptionRefreshResult(_ result: SubscriptionRefreshResult) {
-        if result.failedCount > 0, result.addedCount == 0, result.skippedDuplicateCount == 0 {
-            parseInfo = "❌ \(result.message)"
-            parseOK = false
-            toastManager.show(result.message, style: .error)
-            return
-        }
-
-        parseInfo = "✅ \(result.sourceName): \(lang.t("добавлено", "added")) \(result.addedCount)"
-            + " · \(lang.t("дубликатов", "duplicates")) \(result.skippedDuplicateCount)"
-            + (result.updatedCount > 0 ? " · \(lang.t("обновлено", "updated")) \(result.updatedCount)" : "")
-            + (result.removedCount > 0 ? " · \(lang.t("удалено", "removed")) \(result.removedCount)" : "")
-            + (result.failedCount > 0 ? " · \(lang.t("ошибок", "failed")) \(result.failedCount)" : "")
-        parseOK = true
-
-        if result.addedCount > 0 || result.updatedCount > 0 || result.removedCount > 0 {
-            toastManager.show(
-                lang.t("Обновлено: \(result.sourceName)", "Refreshed: \(result.sourceName)"),
-                style: .success
-            )
-        } else {
-            toastManager.show(
-                lang.t("Новых профилей нет", "No new profiles"),
-                style: .info
-            )
-        }
+        let outcome = ContentFeedback.subscriptionRefresh(result, language: lang.language)
+        parseInfo = outcome.banner.text
+        parseOK = outcome.banner.ok
+        toastManager.show(outcome.toast.message, style: outcome.toast.style)
     }
 
     private func qrCodeMessageFromClipboard() -> String? {
@@ -590,21 +555,6 @@ struct ContentView: View {
             .features(in: ciImage)
             .compactMap { ($0 as? CIQRCodeFeature)?.messageString }
             .first
-    }
-
-    private func importToastMessage(_ result: ProfileBatchAddResult) -> String {
-        if result.addedCount == 0, result.skippedDuplicateCount > 0 {
-            return lang.t("Все профили уже добавлены", "All profiles already added")
-        }
-        if result.skippedDuplicateCount > 0 {
-            return lang.t(
-                "Добавлено: \(result.addedCount), дубликатов: \(result.skippedDuplicateCount)",
-                "Added: \(result.addedCount), duplicates: \(result.skippedDuplicateCount)"
-            )
-        }
-        return result.addedCount == 1
-            ? lang.t("Профиль сохранён", "Profile saved")
-            : lang.t("Профилей сохранено: \(result.addedCount)", "Profiles saved: \(result.addedCount)")
     }
 
     // MARK: Helpers

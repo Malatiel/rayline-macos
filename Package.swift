@@ -29,22 +29,7 @@ let package = Package(
             name: "RaylineTests",
             dependencies: ["RaylineCore"],
             path: "Tests",
-            sources: [
-                "LocalizationTests.swift",
-                "TCPProbeTests.swift",
-                "ProxyParserTests.swift",
-                "ProfileImportParserTests.swift",
-                "ProfileManagerTests.swift",
-                "SubscriptionManagerTests.swift",
-                "ProfilesSummaryTests.swift",
-                "SharedCasesTests.swift",
-                "SettingsSummaryTests.swift",
-                "StatusSummaryTests.swift",
-                "LifecycleRecoveryTests.swift",
-                "DiagnosticExporterTests.swift",
-                "AppPathsTests.swift",
-                "VPNManagerTests.swift"
-            ],
+            // Auto-discovers every Tests/*.swift; new test files need no entry here.
             resources: [
                 .process("shared_test_cases.json")
             ]
