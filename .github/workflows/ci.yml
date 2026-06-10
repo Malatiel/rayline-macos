@@ -37,3 +37,26 @@ jobs:
 
       - name: Run Swift tests
         run: swift test
+
+  ui-typecheck:
+    name: UI type-check
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # `swift test` only builds RaylineCore, which excludes the SwiftUI files
+      # (see Package.swift). Without this step a type error in the UI layer would
+      # pass CI and only surface at release time in build.sh. Type-checking every
+      # App/*.swift source here closes that gap without downloading sing-box.
+      - name: Type-check all Swift sources (including SwiftUI)
+        working-directory: App
+        run: |
+          swiftc -parse-as-library -typecheck \
+            -target arm64-apple-macosx13.0 \
+            -framework SwiftUI \
+            -framework AppKit \
+            -framework Foundation \
+            -framework CoreImage \
+            *.swift
