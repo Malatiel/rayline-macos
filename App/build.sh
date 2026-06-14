@@ -25,6 +25,14 @@ if command -v xattr >/dev/null 2>&1; then
 fi
 mkdir -p "$MACOS" "$RES"
 cp Info.plist "$APP/Contents/"
+if [ ! -f "AppIcon.icns" ]; then
+    echo "❌ Missing AppIcon.icns referenced by Info.plist"
+    exit 1
+fi
+cp AppIcon.icns "$RES/AppIcon.icns"
+if command -v xattr >/dev/null 2>&1; then
+    xattr -dr com.apple.provenance "$APP" 2>/dev/null || true
+fi
 
 # ── 1. Архитектура ────────────────────────────────────────────────────────────
 if [ "$BUILD_ARCH" = "arm64" ]; then

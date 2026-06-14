@@ -12,6 +12,40 @@ This project uses semantic versioning where possible:
 
 No unreleased changes yet.
 
+## 1.1.0 - 2026-06-14
+
+### Added
+
+- Bundled a native macOS app icon in release builds.
+- GitHub issue templates now warn users not to paste proxy links, UUIDs,
+  passwords, local paths, or raw logs.
+- Support docs now describe safe redacted diagnostics export.
+- Settings now includes a manual action to reset macOS SOCKS proxy state after
+  interrupted sessions.
+- The Status screen now shows a first-run setup checklist for sing-box and
+  profile import.
+- Profiles can now be imported in bulk from multiple links, base64 subscription
+  bodies, one-shot HTTP(S) subscription URLs, or QR images copied to the
+  clipboard.
+- HTTP(S) subscription sources can now be saved locally, refreshed manually,
+  and used to label imported profiles by source.
+- Subscription refresh now reconciles saved profiles with the remote source by
+  updating renamed profiles and removing stale profiles from that subscription.
+- Empty or fully invalid subscription refreshes now fail safely without
+  deleting previously saved profiles.
+- Subscription rows now show profile counts, refresh status, and last refresh
+  summaries or errors.
+- Fastest-server selection now measures subscription latency with bounded
+  concurrency instead of checking servers one by one.
+- Profile rows now show cached latency states (`ms`, `timeout`, or not checked)
+  while keeping the provider order from the subscription.
+
+### Changed
+
+- Renamed the project and macOS app to Rayline.
+- Release archives are now named `rayline-macos-<arch>.zip`.
+- New installations use `~/.rayline` for local data.
+
 ## 1.1.0-rc.1 - 2026-05-24
 
 ### Added

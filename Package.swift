@@ -14,6 +14,8 @@ let package = Package(
             // UI file needs to be added below. This is the single source of truth
             // for the core/UI split — build.sh compiles the whole App/ directory.
             exclude: [
+                "AppIcon.icns",
+                "AppIcon.png",
                 "ContentView.swift",
                 "Info.plist",
                 "LogScreen.swift",
