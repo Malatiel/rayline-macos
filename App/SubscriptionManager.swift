@@ -105,14 +105,81 @@ final class SubscriptionManager: ObservableObject {
     @Published var sources: [SubscriptionSource] = []
     @Published var lastError: String?
 
+    @Published var autoRefreshEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(autoRefreshEnabled, forKey: Self.autoRefreshKey) }
+    }
+
+    static let autoRefreshKey = "autoRefreshSubscriptions"
+
+    private let refreshPolicy: SubscriptionRefreshPolicy
+    private var autoRefreshTimer: Timer?
+
     convenience init() {
         self.init(subscriptionsDir: Self.defaultSubscriptionsDir)
     }
 
-    init(subscriptionsDir: URL) {
+    init(
+        subscriptionsDir: URL,
+        refreshPolicy: SubscriptionRefreshPolicy = .default
+    ) {
         self.subscriptionsDir = subscriptionsDir
         self.subscriptionsFile = subscriptionsDir.appendingPathComponent("subscriptions.json")
+        self.refreshPolicy = refreshPolicy
+        autoRefreshEnabled = UserDefaults.standard.object(forKey: Self.autoRefreshKey) as? Bool ?? true
         loadSources()
+    }
+
+    // MARK: - Automatic refresh
+
+    /// Refreshes only the subscriptions whose contents are stale.
+    ///
+    /// Nothing happens when no subscriptions are configured, so a user who never
+    /// added one never generates background traffic.
+    @discardableResult
+    func autoRefreshIfDue(
+        profileManager: ProfileManager,
+        now: Date = Date(),
+        fetch: @escaping Fetch = SubscriptionContentFetcher.fetch
+    ) async -> [SubscriptionRefreshResult] {
+        guard autoRefreshEnabled else { return [] }
+        let due = refreshPolicy.sourcesDue(sources, now: now)
+        guard !due.isEmpty else { return [] }
+
+        var results: [SubscriptionRefreshResult] = []
+        for source in due {
+            let result = await refresh(
+                sourceId: source.id,
+                profileManager: profileManager,
+                fetch: fetch
+            )
+            results.append(result)
+        }
+        return results
+    }
+
+    /// Starts the periodic due-check. Safe to call again; the previous timer is
+    /// replaced rather than stacked.
+    func startAutoRefresh(profileManager: ProfileManager) {
+        autoRefreshTimer?.invalidate()
+        autoRefreshTimer = Timer.scheduledTimer(
+            withTimeInterval: refreshPolicy.checkInterval,
+            repeats: true
+        ) { [weak self, weak profileManager] _ in
+            Task { @MainActor in
+                guard let self, let profileManager else { return }
+                await self.autoRefreshIfDue(profileManager: profileManager)
+            }
+        }
+        // Catch up immediately: the app may have been closed past a due time.
+        Task { @MainActor [weak self, weak profileManager] in
+            guard let self, let profileManager else { return }
+            await self.autoRefreshIfDue(profileManager: profileManager)
+        }
+    }
+
+    func stopAutoRefresh() {
+        autoRefreshTimer?.invalidate()
+        autoRefreshTimer = nil
     }
 
     @discardableResult

@@ -30,6 +30,7 @@ struct RaylineApp: App {
                     // The user can flip this in System Settings while the app
                     // runs, so re-read it rather than trusting the cached value.
                     loginItem.refresh()
+                    subscriptionManager.startAutoRefresh(profileManager: profileManager)
                 }
         } label: {
             StatusBarLabel(state: vpn.state)

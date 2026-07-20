@@ -10,6 +10,9 @@ final class SubscriptionManagerTests: XCTestCase {
         tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("rayline-subscriptions-test-\(UUID().uuidString)")
         UserDefaults.standard.removeObject(forKey: "activeProfileId")
+        // The auto-refresh toggle persists, so a test that turns it off would
+        // otherwise leak into every test that constructs a manager afterwards.
+        UserDefaults.standard.removeObject(forKey: SubscriptionManager.autoRefreshKey)
     }
 
     override func tearDown() {
@@ -103,6 +106,99 @@ final class SubscriptionManagerTests: XCTestCase {
         ) { error in
             XCTAssertEqual(error as? SubscriptionError, .duplicateURL)
         }
+    }
+
+    // MARK: - Automatic refresh
+
+    private func autoRefreshBody() -> String {
+        "vless://371c6ed2-f39b-4076-8046-caa928bf0f5e@auto.example:443?security=tls&type=tcp#Auto"
+    }
+
+    func testAutoRefreshSkipsSourcesThatAreStillFresh() async throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        let source = try manager.addSource(urlString: "https://sub.example/a", name: "A")
+
+        let now = Date()
+        manager.sources = manager.sources.map { existing in
+            var copy = existing
+            if copy.id == source.id { copy.lastRefreshedAt = now.addingTimeInterval(-60) }
+            return copy
+        }
+
+        var fetchCount = 0
+        let results = await manager.autoRefreshIfDue(
+            profileManager: profiles,
+            now: now,
+            fetch: { _ in
+                fetchCount += 1
+                return self.autoRefreshBody()
+            }
+        )
+
+        XCTAssertEqual(fetchCount, 0, "A fresh subscription must not be re-fetched")
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    func testAutoRefreshFetchesSourcesThatAreStale() async throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        _ = try manager.addSource(urlString: "https://sub.example/b", name: "B")
+
+        var fetchCount = 0
+        // A source that has never been refreshed is due straight away.
+        let results = await manager.autoRefreshIfDue(
+            profileManager: profiles,
+            now: Date(),
+            fetch: { _ in
+                fetchCount += 1
+                return self.autoRefreshBody()
+            }
+        )
+
+        XCTAssertEqual(fetchCount, 1)
+        XCTAssertEqual(results.count, 1)
+        XCTAssertFalse(profiles.profiles.isEmpty, "Refreshed profiles must land in the profile list")
+    }
+
+    /// The toggle has to stop network access outright, not merely hide the UI.
+    func testAutoRefreshDisabledPerformsNoNetworkAccess() async throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+        _ = try manager.addSource(urlString: "https://sub.example/c", name: "C")
+        manager.autoRefreshEnabled = false
+
+        var fetchCount = 0
+        let results = await manager.autoRefreshIfDue(
+            profileManager: profiles,
+            now: Date(),
+            fetch: { _ in
+                fetchCount += 1
+                return self.autoRefreshBody()
+            }
+        )
+
+        XCTAssertEqual(fetchCount, 0, "Disabled auto-refresh must not contact the provider")
+        XCTAssertTrue(results.isEmpty)
+    }
+
+    /// A user with no subscriptions must generate no background traffic at all.
+    func testAutoRefreshWithNoSubscriptionsDoesNothing() async {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        let profiles = ProfileManager(profilesDir: tmpDir.appendingPathComponent("profiles"))
+
+        var fetchCount = 0
+        let results = await manager.autoRefreshIfDue(
+            profileManager: profiles,
+            now: Date(),
+            fetch: { _ in
+                fetchCount += 1
+                return self.autoRefreshBody()
+            }
+        )
+
+        XCTAssertEqual(fetchCount, 0)
+        XCTAssertTrue(results.isEmpty)
     }
 
     func testGivenSubscriptionRefreshWhenBodyContainsProfilesThenProfilesAreLabeledBySource() async throws {

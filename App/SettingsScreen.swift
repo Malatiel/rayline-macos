@@ -5,6 +5,7 @@ struct SettingsScreen: View {
     @EnvironmentObject var vpn: VPNManager
     @EnvironmentObject var lang: LanguageManager
     @EnvironmentObject var loginItem: LoginItemManager
+    @EnvironmentObject var subscriptionManager: SubscriptionManager
     @ObservedObject private var themeManager = ThemeManager.shared
 
     let chooseSingBoxBinary: () -> Void
@@ -110,6 +111,20 @@ struct SettingsScreen: View {
                     )
                 ) {
                     Toggle("", isOn: $vpn.autoReconnectEnabled)
+                        .labelsHidden()
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
+                SettingsRow(
+                    title: lang.t("Автообновление подписок", "Auto-refresh subscriptions"),
+                    subtitle: lang.t(
+                        "Перечитывать сохранённые подписки раз в 6 часов. Обращается к серверу провайдера; если подписок нет, ничего не происходит",
+                        "Re-fetch saved subscriptions every 6 hours. Contacts your provider's server; does nothing if you have no subscriptions"
+                    )
+                ) {
+                    Toggle("", isOn: $subscriptionManager.autoRefreshEnabled)
                         .labelsHidden()
                 }
 
