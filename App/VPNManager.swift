@@ -71,6 +71,21 @@ final class VPNManager: ObservableObject {
     private var proxySnapshots: [ProxySnapshot]?
     private let proxySnapshotStore: ProxySnapshotStore
 
+    /// Picks which system-proxy snapshot represents the user's own settings.
+    ///
+    /// A snapshot we are already holding was taken before Rayline touched the
+    /// system proxy, so it is the only trustworthy record of what to restore.
+    /// A snapshot taken while our proxy is still applied — which is exactly the
+    /// state Proxy Guard leaves behind after a drop — describes Rayline's own
+    /// configuration and would strand the user on a dead proxy if persisted.
+    nonisolated static func snapshotToRetain(
+        existing: [ProxySnapshot]?,
+        freshlyTaken: [ProxySnapshot]
+    ) -> [ProxySnapshot] {
+        guard let existing, !existing.isEmpty else { return freshlyTaken }
+        return existing
+    }
+
     private func writeSecureTextFile(_ text: String, to path: String) throws {
         let data = Data(text.utf8)
         let fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, mode_t(0o600))
@@ -274,16 +289,25 @@ final class VPNManager: ObservableObject {
         let proxyResult = await Task.detached(priority: .utility) {
             enableSystemProxy(port: Self.socksPort)
         }.value
-        proxySnapshots = proxyResult.snapshots
+        // `enableSystemProxy` snapshots whatever is configured right now. After a
+        // Proxy Guard drop that is still *our* proxy (127.0.0.1:socksPort), not
+        // the user's own settings, so the fresh snapshot must not replace the one
+        // we are already holding — otherwise a later disconnect would "restore"
+        // the user onto a proxy that is no longer running.
+        let snapshotsToKeep = Self.snapshotToRetain(
+            existing: proxySnapshots,
+            freshlyTaken: proxyResult.snapshots
+        )
+        proxySnapshots = snapshotsToKeep
         do {
-            try proxySnapshotStore.save(proxyResult.snapshots)
+            try proxySnapshotStore.save(snapshotsToKeep)
         } catch {
             addLog(L.t("⚠ Не удалось сохранить состояние системного proxy: \(error.localizedDescription)",
                        "⚠ Failed to save system proxy state: \(error.localizedDescription)"))
         }
         guard isCurrentConnect(generation) else {
             let restoreFailures = await Task.detached(priority: .utility) {
-                restoreSystemProxy(proxyResult.snapshots)
+                restoreSystemProxy(snapshotsToKeep)
             }.value
             if restoreFailures.isEmpty {
                 proxySnapshotStore.clear()
@@ -297,7 +321,7 @@ final class VPNManager: ObservableObject {
             addLog(L.t("⚠ Не удалось настроить системный proxy: \(detail)",
                        "⚠ Failed to set system proxy: \(detail)"))
             let restoreFailures = await Task.detached(priority: .utility) {
-                restoreSystemProxy(proxyResult.snapshots)
+                restoreSystemProxy(snapshotsToKeep)
             }.value
             if restoreFailures.isEmpty {
                 proxySnapshotStore.clear()

@@ -188,4 +188,45 @@ final class VPNManagerTests: XCTestCase {
         )
         return url.path
     }
+
+    // MARK: - System proxy snapshot retention
+
+    private func snapshot(_ service: String, enabled: Bool, server: String, port: String) -> ProxySnapshot {
+        ProxySnapshot(service: service, enabled: enabled, server: server, port: port)
+    }
+
+    func testGivenNoExistingSnapshotThenTheFreshOneIsKept() {
+        let fresh = [snapshot("Wi-Fi", enabled: false, server: "", port: "")]
+        let kept = VPNManager.snapshotToRetain(existing: nil, freshlyTaken: fresh)
+        XCTAssertEqual(kept, fresh)
+    }
+
+    func testGivenEmptyExistingSnapshotThenTheFreshOneIsKept() {
+        let fresh = [snapshot("Wi-Fi", enabled: true, server: "10.0.0.1", port: "1080")]
+        let kept = VPNManager.snapshotToRetain(existing: [], freshlyTaken: fresh)
+        XCTAssertEqual(kept, fresh)
+    }
+
+    /// The Proxy Guard case: reconnecting while our own proxy is still applied
+    /// must not record that proxy as the state to restore later.
+    func testGivenHeldSnapshotThenOurOwnProxyStateIsNotRecorded() {
+        let userOriginal = [snapshot("Wi-Fi", enabled: false, server: "", port: "")]
+        let ourOwnProxy = [snapshot("Wi-Fi", enabled: true, server: "127.0.0.1", port: "10808")]
+
+        let kept = VPNManager.snapshotToRetain(existing: userOriginal, freshlyTaken: ourOwnProxy)
+
+        XCTAssertEqual(kept, userOriginal, "The user's own settings must survive a reconnect")
+        XCTAssertNotEqual(kept, ourOwnProxy, "Rayline must never restore the user onto its own proxy")
+    }
+
+    /// A user who genuinely had their own SOCKS proxy configured must get it
+    /// back, not have it replaced by ours.
+    func testGivenUserHadOwnProxyThenItIsPreservedAcrossReconnect() {
+        let userProxy = [snapshot("Wi-Fi", enabled: true, server: "192.168.1.50", port: "3128")]
+        let ourOwnProxy = [snapshot("Wi-Fi", enabled: true, server: "127.0.0.1", port: "10808")]
+
+        let kept = VPNManager.snapshotToRetain(existing: userProxy, freshlyTaken: ourOwnProxy)
+
+        XCTAssertEqual(kept, userProxy)
+    }
 }
