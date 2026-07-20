@@ -12,6 +12,7 @@ struct RaylineApp: App {
     @StateObject private var profileManager = ProfileManager()
     @StateObject private var subscriptionManager = SubscriptionManager()
     @StateObject private var toastManager   = ToastManager()
+    @StateObject private var loginItem      = LoginItemManager()
     @ObservedObject private var lang  = LanguageManager.shared
     @ObservedObject private var theme = ThemeManager.shared
 
@@ -23,8 +24,12 @@ struct RaylineApp: App {
                 .environmentObject(profileManager)
                 .environmentObject(subscriptionManager)
                 .environmentObject(toastManager)
+                .environmentObject(loginItem)
                 .onAppear {
                     vpn.autoConnectOnLaunchIfNeeded(activeProfile: profileManager.activeProfile)
+                    // The user can flip this in System Settings while the app
+                    // runs, so re-read it rather than trusting the cached value.
+                    loginItem.refresh()
                 }
         } label: {
             StatusBarLabel(state: vpn.state)

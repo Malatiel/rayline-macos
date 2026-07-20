@@ -4,6 +4,7 @@ import AppKit
 struct SettingsScreen: View {
     @EnvironmentObject var vpn: VPNManager
     @EnvironmentObject var lang: LanguageManager
+    @EnvironmentObject var loginItem: LoginItemManager
     @ObservedObject private var themeManager = ThemeManager.shared
 
     let chooseSingBoxBinary: () -> Void
@@ -72,6 +73,21 @@ struct SettingsScreen: View {
             }
 
             SettingsGroup(title: lang.t("Подключение", "Connection"), icon: "bolt.horizontal") {
+                SettingsRow(
+                    title: lang.t("Запуск при входе", "Launch at login"),
+                    subtitle: loginItem.statusDescription.resolved(lang.language)
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { loginItem.isEnabled },
+                        set: { loginItem.setEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .disabled(!loginItem.isToggleEnabled)
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
                 SettingsRow(
                     title: lang.t("Автоподключение", "Auto-connect"),
                     subtitle: lang.t(
