@@ -25,7 +25,14 @@ struct RaylineApp: App {
                 .environmentObject(subscriptionManager)
                 .environmentObject(toastManager)
                 .environmentObject(loginItem)
+                // Give SwiftUI the scheme directly. NSApp.appearance alone only
+                // reaches these views by inheritance, which lands too late for
+                // the first frame of a screen that was just rebuilt.
+                .preferredColorScheme(theme.theme.colorScheme)
                 .onAppear {
+                    // NSApp may not have existed when ThemeManager initialised,
+                    // in which case its appearance was never actually set.
+                    theme.applyTheme()
                     vpn.autoConnectOnLaunchIfNeeded(activeProfile: profileManager.activeProfile)
                     // The user can flip this in System Settings while the app
                     // runs, so re-read it rather than trusting the cached value.

@@ -11,6 +11,23 @@ enum AppTheme: String, CaseIterable {
         case .dark:   return NSAppearance(named: .darkAqua)
         }
     }
+
+    /// The same choice expressed for SwiftUI.
+    ///
+    /// Setting only `NSApp.appearance` leaves the SwiftUI hierarchy without a
+    /// scheme of its own, so dynamic AppKit colours such as
+    /// `NSColor.textBackgroundColor` have no appearance to resolve against on a
+    /// view's first frame and briefly paint their default (dark) value. Handing
+    /// the scheme to SwiftUI as well removes that race.
+    ///
+    /// `nil` means "follow the system", which is what `.system` should do.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
 }
 
 final class ThemeManager: ObservableObject {
