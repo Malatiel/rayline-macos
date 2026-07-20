@@ -10,6 +10,10 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
+No unreleased changes yet.
+
+## 1.2.0 - 2026-07-20
+
 ### Added
 
 - Rayline can now start automatically when you log in, from a new Settings
@@ -40,6 +44,9 @@ This project uses semantic versioning where possible:
 - Known Limitations now states which traffic Rayline actually covers: it sets
   the macOS system SOCKS5 proxy rather than creating a TUN interface, so
   applications that ignore that setting connect directly.
+- Known Limitations now lists every outgoing request Rayline can make, and how
+  to turn each one off.
+- The README no longer calls Rayline a VPN client, since it is a proxy client.
 
 ## 1.1.0 - 2026-06-14
 
