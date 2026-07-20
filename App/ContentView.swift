@@ -354,7 +354,7 @@ struct ContentView: View {
 
     private func connectVPN() {
         if let profile = profileManager.activeProfile {
-            vpn.connect(config: profile)
+            vpn.connect(config: profile, group: profileManager.failoverGroup(for: profile))
         } else if let draftConfig {
             vpn.connect(config: draftConfig)
         }

@@ -78,6 +78,24 @@ This is the most important limitation to understand before relying on Rayline.
 - Rayline keeps the provider order from the subscription rather than sorting
   profiles by latency.
 
+## Outgoing Requests You Should Know About
+
+Rayline sends no telemetry, but some features do make network requests. All of
+them are listed here, and each can be turned off.
+
+- **Tunnel check.** On connect, and when you refresh manually, Rayline opens one
+  connection through the proxy to `example.com:80` and reads the response. This
+  is what proves traffic actually passes; a latency reading alone cannot, since
+  the server's port answers even with dead credentials. It is deliberately not
+  part of the repeating latency ping.
+- **Subscription auto-refresh.** When enabled and you have saved subscriptions,
+  Rayline re-fetches them from your provider every six hours. With no
+  subscriptions configured, nothing is requested.
+- **Server failover.** When enabled, sing-box repeatedly probes a test URL
+  (`https://www.gstatic.com/generate_204` by default) through *every* server in
+  the group to decide which is fastest. This is ongoing traffic to a third party
+  through each of your servers, which is why the feature is off by default.
+
 ## Privacy
 
 - Rayline has no analytics, telemetry, advertising SDKs, crash reporting service,

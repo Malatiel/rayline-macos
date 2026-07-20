@@ -54,11 +54,16 @@ final class VPNManager: ObservableObject {
         didSet { UserDefaults.standard.set(autoReconnectEnabled, forKey: Self.autoReconnectKey) }
     }
 
+    @Published var failoverEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(failoverEnabled, forKey: Self.failoverKey) }
+    }
+
     @Published var lastPingUpdate: Date?
 
     nonisolated static let socksPort: Int = 10808
     nonisolated static let customSingBoxPathKey = "customSingBoxPath"
     nonisolated static let autoReconnectKey = "autoReconnect"
+    nonisolated static let failoverKey = "failoverEnabled"
 
     // Connection timing, in seconds. Centralised so they are easy to find and
     // tune rather than scattered as literals across the connect/ping paths.
@@ -87,6 +92,11 @@ final class VPNManager: ObservableObject {
     private var reconnectTask: Task<Void, Never>?
     private var reconnectAttempt = 0
     private var connectedAt: Date?
+
+    /// Profiles the current connection may fail over between. Retained so an
+    /// automatic reconnect rebuilds the same group rather than silently
+    /// dropping to a single server.
+    private var connectGroup: [ProxyConfig] = []
 
     /// Picks which system-proxy snapshot represents the user's own settings.
     ///
@@ -139,6 +149,9 @@ final class VPNManager: ObservableObject {
         // Defaults to on for a menu-bar app that is meant to stay connected;
         // the Settings toggle is the escape hatch if it misbehaves.
         autoReconnectEnabled = UserDefaults.standard.object(forKey: Self.autoReconnectKey) as? Bool ?? true
+        // Off by default: the group probes a third-party URL through every
+        // member on repeat, which this app should not start doing unasked.
+        failoverEnabled = UserDefaults.standard.bool(forKey: Self.failoverKey)
         customSingBoxPath = UserDefaults.standard.string(forKey: Self.customSingBoxPathKey) ?? ""
         hasSingBox = findSingBox() != nil
         if !hasSingBox {
@@ -165,7 +178,8 @@ final class VPNManager: ObservableObject {
         }
     }
 
-    func connect(config cfg: ProxyConfig) {
+    func connect(config cfg: ProxyConfig, group: [ProxyConfig] = []) {
+        connectGroup = group.isEmpty ? [cfg] : group
         startConnectTask { manager, generation in
             if !manager.hasSingBox {
                 await manager.downloadSingBox()
@@ -235,7 +249,17 @@ final class VPNManager: ObservableObject {
         state = .connecting
         config = cfg
 
-        let json = cfg.toSingBoxConfig()
+        // A failover group only makes sense with somewhere to fail over to;
+        // the builder returns nil for a single profile and we use the plain
+        // config, which keeps the common case byte-for-byte as before.
+        let failoverJSON = failoverEnabled
+            ? ProxyConfig.singBoxFailoverConfig(profiles: connectGroup)
+            : nil
+        if failoverJSON != nil {
+            addLog(L.t("Автовыбор сервера: \(connectGroup.count) профиля(ей) в группе",
+                       "Server failover: \(connectGroup.count) profiles in the group"))
+        }
+        let json = failoverJSON ?? cfg.toSingBoxConfig()
         do {
             try FileManager.default.createDirectory(at: Self.installDir,
                                                      withIntermediateDirectories: true)
@@ -472,6 +496,7 @@ final class VPNManager: ObservableObject {
     private func scheduleReconnect(afterUptime uptime: TimeInterval) {
         guard autoReconnectEnabled, let cfg = config else { return }
         let L = LanguageManager.shared
+        let group = connectGroup
 
         if reconnectPolicy.shouldResetAttempts(afterConnectionLasting: uptime) {
             reconnectAttempt = 0
@@ -504,7 +529,7 @@ final class VPNManager: ObservableObject {
             // Drop the reference before connecting: `connect` cancels any
             // pending retry, which would otherwise be this very task.
             self.reconnectTask = nil
-            self.connect(config: cfg)
+            self.connect(config: cfg, group: group)
         }
     }
 

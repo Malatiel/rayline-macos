@@ -132,6 +132,20 @@ struct SettingsScreen: View {
                     .padding(.leading, 16)
 
                 SettingsRow(
+                    title: lang.t("Автовыбор сервера", "Server failover"),
+                    subtitle: lang.t(
+                        "Переключаться на рабочий сервер внутри подписки автоматически. sing-box для этого регулярно опрашивает тестовый URL через каждый сервер — это постоянный внешний трафик, поэтому по умолчанию выключено",
+                        "Switch to a working server within a subscription automatically. sing-box probes a test URL through every server to do this, which is ongoing outside traffic, so it is off by default"
+                    )
+                ) {
+                    Toggle("", isOn: $vpn.failoverEnabled)
+                        .labelsHidden()
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
+                SettingsRow(
                     title: "sing-box",
                     subtitle: summary.singBoxDescription
                 ) {

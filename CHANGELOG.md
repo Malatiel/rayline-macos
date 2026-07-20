@@ -17,6 +17,12 @@ This project uses semantic versioning where possible:
 - A connection that drops on its own is now retried automatically with a
   growing delay, up to six attempts. It can be turned off in Settings, and it
   never retries a connection that failed before it was established.
+- The status card now reports when the tunnel is connected but not actually
+  carrying traffic, which a latency reading alone cannot detect.
+- Saved subscriptions can now refresh themselves every six hours.
+- Optional server failover picks a working server within a subscription
+  automatically. Off by default, because it makes sing-box probe a test URL
+  through every server on repeat.
 
 ### Fixed
 

@@ -274,7 +274,26 @@ enum ProxyParser {
 /// Using Codable (instead of hand-rolled string concatenation) means JSONEncoder
 /// handles all escaping, so server names, passwords, and paths containing quotes,
 /// slashes, or control characters always produce valid JSON.
-private struct SingBoxConfig: Encodable {
+/// How the failover group probes its members.
+///
+/// sing-box measures each member by fetching `testURL` through it, on repeat.
+/// That is real, recurring traffic to a third party through every configured
+/// server, which is why failover is opt-in rather than the default.
+struct FailoverSettings: Equatable {
+    let testURL: String
+    let interval: String
+    /// Milliseconds a member must beat the current one by before switching, so
+    /// two similar servers do not trade places constantly.
+    let tolerance: Int
+
+    static let `default` = FailoverSettings(
+        testURL: "https://www.gstatic.com/generate_204",
+        interval: "3m",
+        tolerance: 50
+    )
+}
+
+struct SingBoxConfig: Encodable {
     let log: Log
     let inbounds: [Inbound]
     let outbounds: [Outbound]
@@ -309,6 +328,13 @@ private struct SingBoxConfig: Encodable {
         var password: String?   // Shadowsocks / Trojan
         var tls: TLS?
         var transport: Transport?
+
+        // urltest group only: the member tags it chooses between, plus how it
+        // probes them.
+        var outbounds: [String]?
+        var url: String?
+        var interval: String?
+        var tolerance: Int?
     }
 
     struct Route: Encodable {
@@ -393,7 +419,7 @@ extension ProxyConfig {
         return json
     }
 
-    private func singBoxOutbound() -> SingBoxConfig.Outbound {
+    func singBoxOutbound() -> SingBoxConfig.Outbound {
         switch proto {
         case .vless:
             var outbound = SingBoxConfig.Outbound(type: "vless", server: server, server_port: port)
@@ -440,6 +466,70 @@ extension ProxyConfig {
             if network == "ws" { outbound.transport = singBoxWebSocketTransport() }
             return outbound
         }
+    }
+
+    /// Config that spreads across several profiles and lets sing-box move to a
+    /// working one on its own.
+    ///
+    /// Returns `nil` for fewer than two profiles: a group of one has nothing to
+    /// fail over to, and would only add recurring probe traffic for nothing.
+    /// The group carries the `proxy` tag so routing is identical to the single
+    /// profile case — only what sits behind that tag changes.
+    static func singBoxFailoverConfig(
+        profiles: [ProxyConfig],
+        socksPort: Int = VPNManager.socksPort,
+        settings: FailoverSettings = .default
+    ) -> String? {
+        guard profiles.count >= 2 else { return nil }
+
+        var members: [SingBoxConfig.Outbound] = []
+        var memberTags: [String] = []
+        for (index, profile) in profiles.enumerated() {
+            var outbound = profile.singBoxOutbound()
+            let tag = "\(SingBoxConfig.proxyTag)-\(index)"
+            outbound.tag = tag
+            members.append(outbound)
+            memberTags.append(tag)
+        }
+
+        var group = SingBoxConfig.Outbound(type: "urltest", tag: SingBoxConfig.proxyTag)
+        group.outbounds = memberTags
+        group.url = settings.testURL
+        group.interval = settings.interval
+        group.tolerance = settings.tolerance
+
+        let direct = SingBoxConfig.Outbound(
+            type: "direct",
+            tag: SingBoxConfig.directTag
+        )
+
+        let config = SingBoxConfig(
+            log: .init(level: "info"),
+            inbounds: [
+                .init(
+                    type: "socks",
+                    listen: "127.0.0.1",
+                    listen_port: socksPort,
+                    sniff: true,
+                    sniff_override_destination: true
+                )
+            ],
+            outbounds: [group] + members + [direct],
+            route: .init(
+                rules: [
+                    .init(ip_is_private: true, outbound: SingBoxConfig.directTag)
+                ],
+                final: SingBoxConfig.proxyTag
+            )
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(config),
+              let json = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return json
     }
 
     private func singBoxTransport() -> SingBoxConfig.Transport? {

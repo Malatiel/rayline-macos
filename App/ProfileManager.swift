@@ -272,6 +272,18 @@ final class ProfileManager: ObservableObject {
         saveProfiles()
     }
 
+    /// The profiles a failover group may switch between: the chosen one plus
+    /// its siblings from the same subscription.
+    ///
+    /// The chosen profile leads so it stays preferred when measurements are
+    /// close. A manually added profile has no siblings and yields a group of
+    /// one, which the config builder declines to turn into a group.
+    func failoverGroup(for profile: ProxyConfig) -> [ProxyConfig] {
+        guard let sourceId = profile.sourceId else { return [profile] }
+        let siblings = profiles.filter { $0.sourceId == sourceId && $0.id != profile.id }
+        return [profile] + siblings
+    }
+
     func selectProfile(id: UUID) {
         guard profiles.contains(where: { $0.id == id }) else { return }
         activeProfileId = id
