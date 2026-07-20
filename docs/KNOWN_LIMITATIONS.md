@@ -24,9 +24,11 @@ This is the most important limitation to understand before relying on Rayline.
   own network stack.
 - UDP traffic is generally not covered by the macOS SOCKS proxy setting, so
   protocols that rely on UDP are typically not routed.
-- Traffic to local and private network addresses currently also goes through
-  the proxy, which can break access to devices on your own network such as a
-  router admin page, a NAS, or a printer.
+- Traffic to private and loopback addresses is routed directly instead of
+  through the proxy, so devices on your own network stay reachable while
+  connected. This matches on the destination IP address, so local *hostnames*
+  are only covered if the requesting application resolves them to a private
+  address before connecting.
 - The kill switch keeps the system proxy active when the connection drops, so
   applications that honour the proxy fail closed rather than leaking. It does
   **not** stop traffic from applications that bypass the proxy setting in the

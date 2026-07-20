@@ -10,7 +10,17 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
-No unreleased changes yet.
+### Fixed
+
+- Traffic to private and loopback addresses is now routed directly instead of
+  through the proxy, so routers, NAS devices, printers, and other machines on
+  your own network stay reachable while connected.
+
+### Documentation
+
+- Known Limitations now states which traffic Rayline actually covers: it sets
+  the macOS system SOCKS5 proxy rather than creating a TUN interface, so
+  applications that ignore that setting connect directly.
 
 ## 1.1.0 - 2026-06-14
 
