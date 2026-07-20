@@ -2,9 +2,7 @@ import Foundation
 import Network
 
 /// A single TCP reachability/RTT probe shared by the connection readiness check,
-/// the connected-state ping, and subscription latency measurement. Centralises
-/// the "open a TCP connection, time the handshake, resume exactly once, enforce a
-/// timeout" pattern that was previously duplicated three times.
+/// the connected-state ping, and subscription latency measurement.
 enum TCPProbe {
     /// Opens a TCP connection to `host:port` and returns the time-to-ready in
     /// milliseconds, or `nil` if the connection fails, is cancelled, or does not

@@ -7,9 +7,8 @@ import Foundation
 /// because it spawns a process and cannot be exercised in tests.
 struct ReconnectPolicy: Equatable {
 
-    /// How many times to retry a single drop before giving up and leaving the
-    /// error on screen. Without a cap, a server that is simply gone would keep
-    /// restarting a process forever.
+    /// Without a cap, a server that is simply gone would keep restarting a
+    /// process forever.
     let maxAttempts: Int
 
     let baseDelay: TimeInterval
@@ -36,7 +35,6 @@ struct ReconnectPolicy: Equatable {
         return min(exponential, maxDelay)
     }
 
-    /// Whether a drop after a connection of this length starts a new count.
     func shouldResetAttempts(afterConnectionLasting duration: TimeInterval) -> Bool {
         duration >= stabilityThreshold
     }

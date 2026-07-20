@@ -1,9 +1,10 @@
 import Foundation
 
-/// Pure, testable presentation logic extracted from ContentView's glue methods.
-/// It takes the current `AppLanguage` explicitly, so the message/banner building
-/// that used to live inside the SwiftUI view can be unit-tested in both
-/// languages without the view layer or the `LanguageManager` singleton.
+/// Message and banner building for the import and subscription flows.
+///
+/// Takes the current `AppLanguage` explicitly rather than reading the
+/// `LanguageManager` singleton, so it can be tested in both languages without
+/// the view layer or global state.
 enum ContentFeedback {
 
     /// An inline status line shown under the import field (the `parseInfo` /

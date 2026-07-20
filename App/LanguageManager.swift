@@ -15,7 +15,6 @@ final class LanguageManager: ObservableObject {
         self.language = AppLanguage(rawValue: saved) ?? .ru
     }
 
-    /// Returns the Russian or English string depending on current language.
     func t(_ ru: String, _ en: String) -> String {
         language == .en ? en : ru
     }

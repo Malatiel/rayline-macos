@@ -16,7 +16,7 @@ enum SocksProbe {
 
     /// Target used to prove the tunnel carries traffic. `example.com` is run by
     /// IANA for exactly this kind of use and sees no meaningful load from it.
-    /// Only a TCP connection is opened — no request is sent and no response read.
+    /// One `HEAD` request is sent and its status line read; nothing else.
     static let defaultTargetHost = "example.com"
     static let defaultTargetPort = 80
 

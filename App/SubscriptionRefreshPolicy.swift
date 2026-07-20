@@ -6,13 +6,12 @@ import Foundation
 /// "is this due?" stays separate from the network work it triggers.
 struct SubscriptionRefreshPolicy: Equatable {
 
-    /// How old a subscription's last successful refresh may be before the app
-    /// fetches it again.
+    /// Measured from the last successful refresh, not from when the
+    /// subscription was added.
     let interval: TimeInterval
 
-    /// How often to look for due subscriptions. Checking far more often than
-    /// the interval costs nothing — the check is local — and means a machine
-    /// that was asleep picks up promptly after waking.
+    /// Checking far more often than `interval` costs nothing — the check is
+    /// local — and means a machine that was asleep picks up soon after waking.
     let checkInterval: TimeInterval
 
     static let `default` = SubscriptionRefreshPolicy(

@@ -270,10 +270,6 @@ enum ProxyParser {
 
 // MARK: - sing-box config generation
 
-/// Encodable model of the subset of sing-box configuration Rayline generates.
-/// Using Codable (instead of hand-rolled string concatenation) means JSONEncoder
-/// handles all escaping, so server names, passwords, and paths containing quotes,
-/// slashes, or control characters always produce valid JSON.
 /// How the failover group probes its members.
 ///
 /// sing-box measures each member by fetching `testURL` through it, on repeat.
@@ -293,6 +289,10 @@ struct FailoverSettings: Equatable {
     )
 }
 
+/// Encodable model of the subset of sing-box configuration Rayline generates.
+/// Going through JSONEncoder means all escaping is handled, so server names,
+/// passwords, and paths containing quotes, slashes, or control characters
+/// always produce valid JSON.
 struct SingBoxConfig: Encodable {
     let log: Log
     let inbounds: [Inbound]
