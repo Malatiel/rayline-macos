@@ -278,6 +278,12 @@ private struct SingBoxConfig: Encodable {
     let log: Log
     let inbounds: [Inbound]
     let outbounds: [Outbound]
+    let route: Route
+
+    /// Outbound tags. Route rules address outbounds by tag, so both the proxy
+    /// and the direct outbound need one.
+    static let proxyTag  = "proxy"
+    static let directTag = "direct"
 
     struct Log: Encodable { let level: String }
 
@@ -291,8 +297,11 @@ private struct SingBoxConfig: Encodable {
 
     struct Outbound: Encodable {
         let type: String
-        let server: String
-        let server_port: Int
+        var tag: String?
+        // The direct outbound has no endpoint, so these are optional even
+        // though every proxy outbound sets them.
+        var server: String?
+        var server_port: Int?
         var uuid: String?       // VLESS / VMess
         var flow: String?       // VLESS Reality
         var security: String?   // VMess cipher
@@ -300,6 +309,16 @@ private struct SingBoxConfig: Encodable {
         var password: String?   // Shadowsocks / Trojan
         var tls: TLS?
         var transport: Transport?
+    }
+
+    struct Route: Encodable {
+        let rules: [Rule]
+        let `final`: String
+    }
+
+    struct Rule: Encodable {
+        let ip_is_private: Bool
+        let outbound: String
     }
 
     struct TLS: Encodable {
@@ -332,6 +351,19 @@ private struct SingBoxConfig: Encodable {
 extension ProxyConfig {
 
     func toSingBoxConfig(socksPort: Int = VPNManager.socksPort) -> String {
+        var proxy = singBoxOutbound()
+        proxy.tag = SingBoxConfig.proxyTag
+
+        // Traffic to private and loopback addresses goes out directly instead of
+        // through the proxy, so the local network (router page, NAS, printer)
+        // stays reachable while connected. This matches on the destination IP,
+        // so it covers literal addresses; local *hostnames* depend on how the
+        // requesting app resolves them and are not guaranteed.
+        let direct = SingBoxConfig.Outbound(
+            type: "direct",
+            tag: SingBoxConfig.directTag
+        )
+
         let config = SingBoxConfig(
             log: .init(level: "info"),
             inbounds: [
@@ -343,7 +375,13 @@ extension ProxyConfig {
                     sniff_override_destination: true
                 )
             ],
-            outbounds: [singBoxOutbound()]
+            outbounds: [proxy, direct],
+            route: .init(
+                rules: [
+                    .init(ip_is_private: true, outbound: SingBoxConfig.directTag)
+                ],
+                final: SingBoxConfig.proxyTag
+            )
         )
 
         let encoder = JSONEncoder()

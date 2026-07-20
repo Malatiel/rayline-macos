@@ -293,18 +293,123 @@ final class ProxyParserTests: XCTestCase {
 
     // MARK: - sing-box Config Generation
 
-    /// Decodes the first outbound's TLS block from a generated sing-box config.
-    /// Lets sing-box config tests assert on structure instead of exact JSON
-    /// formatting (which JSONEncoder controls).
+    /// Decodes a generated sing-box config into a dictionary. Lets sing-box
+    /// config tests assert on structure instead of exact JSON formatting
+    /// (which JSONEncoder controls).
+    private func configRoot(in singBoxJSON: String) -> [String: Any]? {
+        guard let data = singBoxJSON.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    private func outbounds(in singBoxJSON: String) -> [[String: Any]] {
+        configRoot(in: singBoxJSON)?["outbounds"] as? [[String: Any]] ?? []
+    }
+
+    /// Looks an outbound up by tag rather than by position, so these tests do
+    /// not silently depend on the order outbounds are emitted in.
+    private func outbound(tagged tag: String, in singBoxJSON: String) -> [String: Any]? {
+        outbounds(in: singBoxJSON).first { $0["tag"] as? String == tag }
+    }
+
+    private func routeBlock(in singBoxJSON: String) -> [String: Any]? {
+        configRoot(in: singBoxJSON)?["route"] as? [String: Any]
+    }
+
+    /// Decodes the proxy outbound's TLS block from a generated sing-box config.
     private func tlsBlock(in singBoxJSON: String) -> [String: Any]? {
-        guard let data = singBoxJSON.data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let outbounds = root["outbounds"] as? [[String: Any]],
-              let outbound = outbounds.first else {
+        guard let outbound = outbound(tagged: "proxy", in: singBoxJSON) else {
             return nil
         }
         return outbound["tls"] as? [String: Any]
     }
+
+    // MARK: - sing-box Routing
+
+    /// Every generated config must send private/loopback destinations straight
+    /// out instead of through the proxy, so the local network stays reachable
+    /// while connected.
+    func testSingBoxRoutesPrivateAddressesDirect() throws {
+        let cfg = try ProxyParser.parse("trojan://pw@t.io:443?security=tls")
+        let json = cfg.toSingBoxConfig()
+
+        guard let route = routeBlock(in: json) else {
+            return XCTFail("Generated config must contain a route block")
+        }
+        guard let rules = route["rules"] as? [[String: Any]] else {
+            return XCTFail("Route block must contain rules")
+        }
+        let privateRule = rules.first { $0["ip_is_private"] as? Bool == true }
+        XCTAssertNotNil(privateRule, "Route must have a rule matching private IPs")
+        XCTAssertEqual(
+            privateRule?["outbound"] as? String, "direct",
+            "Private destinations must be routed to the direct outbound"
+        )
+    }
+
+    /// Anything the rules do not match must still go through the proxy —
+    /// a wrong `final` would silently send all traffic out in the clear.
+    func testSingBoxUnmatchedTrafficFinalsToProxy() throws {
+        let cfg = try ProxyParser.parse("trojan://pw@t.io:443?security=tls")
+        let json = cfg.toSingBoxConfig()
+        XCTAssertEqual(
+            routeBlock(in: json)?["final"] as? String, "proxy",
+            "Unmatched traffic must default to the proxy outbound, not direct"
+        )
+    }
+
+    func testSingBoxDirectOutboundHasNoEndpoint() throws {
+        let cfg = try ProxyParser.parse("trojan://pw@t.io:443?security=tls")
+        let json = cfg.toSingBoxConfig()
+
+        guard let direct = outbound(tagged: "direct", in: json) else {
+            return XCTFail("Generated config must contain a direct outbound")
+        }
+        XCTAssertEqual(direct["type"] as? String, "direct")
+        XCTAssertNil(direct["server"], "Direct outbound must not carry a server")
+        XCTAssertNil(direct["server_port"], "Direct outbound must not carry a port")
+        XCTAssertNil(direct["password"], "Direct outbound must not carry credentials")
+    }
+
+    /// Tagging must not disturb the proxy outbound's endpoint or credentials.
+    func testSingBoxProxyOutboundKeepsEndpointWhenTagged() throws {
+        let cfg = try ProxyParser.parse("trojan://trojanpw@trojan.io:443?security=tls")
+        let json = cfg.toSingBoxConfig()
+
+        guard let proxy = outbound(tagged: "proxy", in: json) else {
+            return XCTFail("Generated config must contain a proxy outbound")
+        }
+        XCTAssertEqual(proxy["type"] as? String, "trojan")
+        XCTAssertEqual(proxy["server"] as? String, "trojan.io")
+        XCTAssertEqual(proxy["server_port"] as? Int, 443)
+        XCTAssertEqual(proxy["password"] as? String, "trojanpw")
+    }
+
+    /// Routing is protocol-independent, so no protocol may lose it.
+    func testSingBoxRoutingPresentForEveryProtocol() throws {
+        let uris = [
+            "vless://a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5@v.io:443?security=tls",
+            "vmess://\(Data(#"{"v":"2","ps":"N","add":"m.io","port":443,"id":"11112222-3333-4444-5555-666677778888","aid":0,"net":"tcp","tls":"tls"}"#.utf8).base64EncodedString())",
+            "ss://\(Data("aes-256-gcm:password".utf8).base64EncodedString())@s.io:8388",
+            "trojan://pw@t.io:443?security=tls",
+        ]
+        for uri in uris {
+            let json = try ProxyParser.parse(uri).toSingBoxConfig()
+            XCTAssertNotNil(
+                outbound(tagged: "direct", in: json),
+                "Config for \(uri) must have a direct outbound"
+            )
+            XCTAssertNotNil(
+                outbound(tagged: "proxy", in: json),
+                "Config for \(uri) must have a tagged proxy outbound"
+            )
+            XCTAssertEqual(
+                routeBlock(in: json)?["final"] as? String, "proxy",
+                "Config for \(uri) must default unmatched traffic to the proxy"
+            )
+        }
+    }
+
+    // MARK: - sing-box Config Generation
 
     func testSingBoxVlessReality() throws {
         let uuid = "a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5"
