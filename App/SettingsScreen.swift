@@ -103,6 +103,20 @@ struct SettingsScreen: View {
                     .padding(.leading, 16)
 
                 SettingsRow(
+                    title: lang.t("Автопереподключение", "Auto-reconnect"),
+                    subtitle: lang.t(
+                        "Повторять подключение, если соединение оборвалось само (с растущей паузой, до 6 попыток)",
+                        "Retry when an established connection drops on its own (backing off, up to 6 attempts)"
+                    )
+                ) {
+                    Toggle("", isOn: $vpn.autoReconnectEnabled)
+                        .labelsHidden()
+                }
+
+                Divider()
+                    .padding(.leading, 16)
+
+                SettingsRow(
                     title: "sing-box",
                     subtitle: summary.singBoxDescription
                 ) {

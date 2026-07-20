@@ -44,10 +44,15 @@ final class VPNManager: ObservableObject {
         didSet { UserDefaults.standard.set(autoConnectEnabled, forKey: "autoConnect") }
     }
 
+    @Published var autoReconnectEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(autoReconnectEnabled, forKey: Self.autoReconnectKey) }
+    }
+
     @Published var lastPingUpdate: Date?
 
     nonisolated static let socksPort: Int = 10808
     nonisolated static let customSingBoxPathKey = "customSingBoxPath"
+    nonisolated static let autoReconnectKey = "autoReconnect"
 
     // Connection timing, in seconds. Centralised so they are easy to find and
     // tune rather than scattered as literals across the connect/ping paths.
@@ -70,6 +75,11 @@ final class VPNManager: ObservableObject {
     private var connectionGeneration: Int = 0
     private var proxySnapshots: [ProxySnapshot]?
     private let proxySnapshotStore: ProxySnapshotStore
+
+    private let reconnectPolicy: ReconnectPolicy
+    private var reconnectTask: Task<Void, Never>?
+    private var reconnectAttempt = 0
+    private var connectedAt: Date?
 
     /// Picks which system-proxy snapshot represents the user's own settings.
     ///
@@ -112,11 +122,16 @@ final class VPNManager: ObservableObject {
 
     init(
         performStartupRecovery: Bool = true,
-        proxySnapshotStore: ProxySnapshotStore = .default
+        proxySnapshotStore: ProxySnapshotStore = .default,
+        reconnectPolicy: ReconnectPolicy = .default
     ) {
         self.proxySnapshotStore = proxySnapshotStore
+        self.reconnectPolicy = reconnectPolicy
         killSwitchEnabled = UserDefaults.standard.bool(forKey: "killSwitchEnabled")
         autoConnectEnabled = UserDefaults.standard.bool(forKey: "autoConnect")
+        // Defaults to on for a menu-bar app that is meant to stay connected;
+        // the Settings toggle is the escape hatch if it misbehaves.
+        autoReconnectEnabled = UserDefaults.standard.object(forKey: Self.autoReconnectKey) as? Bool ?? true
         customSingBoxPath = UserDefaults.standard.string(forKey: Self.customSingBoxPathKey) ?? ""
         hasSingBox = findSingBox() != nil
         if !hasSingBox {
@@ -163,6 +178,9 @@ final class VPNManager: ObservableObject {
     private func startConnectTask(
         _ operation: @escaping @MainActor (VPNManager, Int) async -> Void
     ) {
+        // A connect that is already under way supersedes any pending retry.
+        reconnectTask?.cancel()
+        reconnectTask = nil
         connectTask?.cancel()
         connectionGeneration += 1
         let generation = connectionGeneration
@@ -336,12 +354,19 @@ final class VPNManager: ObservableObject {
         addLog(L.t("Подключено! SOCKS5 127.0.0.1:\(Self.socksPort)",
                    "Connected! SOCKS5 127.0.0.1:\(Self.socksPort)"))
         state = .connected
+        connectedAt = Date()
         startPing(host: cfg.server, port: cfg.port)
     }
 
     // MARK: - Disconnect
 
     func disconnect() {
+        // Disconnecting by hand ends the retry sequence outright: the user has
+        // said they want to be off, so a pending attempt must not revive it.
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        reconnectAttempt = 0
+        connectedAt = nil
         connectTask?.cancel()
         connectTask = nil
         connectionGeneration += 1
@@ -382,6 +407,12 @@ final class VPNManager: ObservableObject {
 
     private func handleUnexpectedDisconnect() {
         let L = LanguageManager.shared
+        // Only a connection that was actually established is worth retrying.
+        // A failure while still connecting usually means bad credentials or a
+        // bad config, which retrying would only hide behind a loop.
+        let wasConnected = state.isConnected
+        let uptime = connectedAt.map { Date().timeIntervalSince($0) } ?? 0
+        connectedAt = nil
         stopPing()
         stopLogTail()
         process = nil
@@ -418,6 +449,54 @@ final class VPNManager: ObservableObject {
             try? FileManager.default.removeItem(atPath: self.configPath)
             addLog(L.t("Соединение оборвалось", "Connection lost"))
             setState(.error(L.t("Соединение оборвалось", "Connection lost")))
+        }
+
+        if wasConnected {
+            scheduleReconnect(afterUptime: uptime)
+        }
+    }
+
+    /// Queues one retry of the profile that just dropped.
+    ///
+    /// The system proxy is left exactly as the branch above decided: under Proxy
+    /// Guard it stays applied, and the retained snapshot of the user's own
+    /// settings survives the reconnect via `snapshotToRetain`.
+    private func scheduleReconnect(afterUptime uptime: TimeInterval) {
+        guard autoReconnectEnabled, let cfg = config else { return }
+        let L = LanguageManager.shared
+
+        if reconnectPolicy.shouldResetAttempts(afterConnectionLasting: uptime) {
+            reconnectAttempt = 0
+        }
+        reconnectAttempt += 1
+
+        guard let delay = reconnectPolicy.delay(forAttempt: reconnectAttempt) else {
+            addLog(L.t(
+                "Автоподключение прекращено после \(reconnectPolicy.maxAttempts) попыток",
+                "Auto-reconnect gave up after \(reconnectPolicy.maxAttempts) attempts"
+            ))
+            reconnectAttempt = 0
+            return
+        }
+
+        let seconds = Int(delay)
+        addLog(L.t(
+            "Переподключение через \(seconds) с (попытка \(reconnectAttempt) из \(reconnectPolicy.maxAttempts))",
+            "Reconnecting in \(seconds)s (attempt \(reconnectAttempt) of \(reconnectPolicy.maxAttempts))"
+        ))
+
+        let generation = connectionGeneration
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled else { return }
+            // A manual disconnect during the wait bumps the generation, and it
+            // must win over a retry that was queued before the user acted.
+            guard self.connectionGeneration == generation else { return }
+            // Drop the reference before connecting: `connect` cancels any
+            // pending retry, which would otherwise be this very task.
+            self.reconnectTask = nil
+            self.connect(config: cfg)
         }
     }
 

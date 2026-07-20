@@ -10,11 +10,24 @@ This project uses semantic versioning where possible:
 
 ## Unreleased
 
+### Added
+
+- Rayline can now start automatically when you log in, from a new Settings
+  toggle.
+- A connection that drops on its own is now retried automatically with a
+  growing delay, up to six attempts. It can be turned off in Settings, and it
+  never retries a connection that failed before it was established.
+
 ### Fixed
 
 - Traffic to private and loopback addresses is now routed directly instead of
   through the proxy, so routers, NAS devices, printers, and other machines on
   your own network stay reachable while connected.
+- Reconnecting after a Proxy Guard drop no longer overwrites the saved record
+  of your own proxy settings, which previously left you restored onto a proxy
+  that was no longer running.
+- Pasting a proxy link into the subscription URL field now explains that it
+  belongs in the import field below, instead of only reporting a bad URL.
 
 ### Documentation
 
