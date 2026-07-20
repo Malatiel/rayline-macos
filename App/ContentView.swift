@@ -99,7 +99,11 @@ struct ContentView: View {
             detailContent
         }
         .frame(minWidth: 860, idealWidth: 920, minHeight: 560, idealHeight: 620)
-        .animation(.easeInOut(duration: 0.22), value: selectedSection)
+        // Deliberately not animated on `selectedSection`: the sections are
+        // entirely different screens, and animating the swap cross-dissolves
+        // them, so for the length of the animation both are drawn at once.
+        // Their translucent backgrounds then stack and read as a dark flash
+        // over the input fields before the outgoing screen finishes fading.
         .animation(.easeInOut(duration: 0.22), value: vpn.state)
         .onAppear {
             if !trimmed.isEmpty {
