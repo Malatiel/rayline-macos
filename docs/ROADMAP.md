@@ -44,39 +44,81 @@ criteria.
 Do not reintroduce a self-written protocol engine into `main` as a selectable
 backend without that review work.
 
-## Near-Term Priorities
+## Standing Commitments
 
-### v1.0.x Stability
+These hold for every release rather than belonging to a version.
 
 - Keep release checks green for Swift tests, privacy scan, app build,
   checksums, and release artifact verification.
-- Keep sing-box pinned and checksum-verified.
+- Keep sing-box pinned and its download checksum-verified.
 - Keep diagnostics redacted by default.
 - Keep crash and force-quit recovery focused on restoring system proxy state.
-
-### v1.1 User Experience
-
-- Complete pre-release GUI checklist and release-candidate validation.
-- Add screenshots and a short demo flow to the README after the UI is stable.
-- Improve connection errors with clearer next actions.
-
-### v1.2 Profile Management
-
-- Improve subscription conflict handling for duplicate remote entries.
-- Add custom profile groups or folders.
-- Add manual cached latency refresh controls.
-- Add safer profile export with an explicit confirmation when credentials are
-  included.
-
-### v1.3 Distribution and Trust
-
-- Configure Developer ID signing and notarization when Apple credentials are
-  available.
-- Add a release verification section with screenshots in the GitHub release
-  body.
-- Add automated UI smoke coverage or an internal smoke mode that does not
-  require screen recording or accessibility permissions.
 - Keep a clear changelog for every release.
+
+## Shipped in 1.2.0
+
+Recorded here because this work was not on the previous roadmap, which planned
+a different 1.2 and left the version describing something the release did not
+contain.
+
+- Private and loopback destinations route directly, so the local network stays
+  reachable while connected.
+- Launch at login.
+- Automatic reconnect after an established connection drops, with bounded
+  retries and an off switch.
+- A tunnel check that proves traffic passes, rather than inferring health from
+  a latency reading.
+- Scheduled subscription refresh.
+- Optional failover across the servers of one subscription, off by default.
+- Documentation of what traffic Rayline covers and every outgoing request it
+  can make.
+
+## Verification Debt
+
+Carried by the 1.2.0 release and worth closing before adding features. This is
+the honest state, not a formality.
+
+- The `x86_64` release artifact has never been verified; only `arm64` was built
+  and checked locally.
+- `MANUAL_GUI_CHECKLIST.md` has not been run end to end against 1.2.0.
+- Launch at login has not been confirmed from an app installed in
+  `/Applications`, which is the only place registration can succeed.
+- Failover has not been exercised against a subscription with several live
+  servers.
+
+## Open Work
+
+### Distribution and Trust
+
+- Developer ID signing and notarization are **already implemented** in
+  `.github/workflows/release.yml` and skip themselves when the repository
+  secrets are absent. This is blocked on having an Apple Developer account, not
+  on code. Until then every user meets a Gatekeeper warning, which is the
+  largest single obstacle to anyone actually installing the app.
+- Add automated UI smoke coverage, or an internal smoke mode that needs no
+  screen recording or accessibility permissions.
+- Add screenshots and a short demo flow to the README.
+
+### Correctness and Safety
+
+- `findSingBox()` will run a binary from `/opt/homebrew/bin`, `/usr/local/bin`
+  or `/usr/bin` **without verifying it**. Checksum pinning only guards the
+  download path, and `/usr/local/bin` is writable without `sudo` on macOS. The
+  supply-chain story is weaker than it reads.
+- The macOS proxy bypass list (`networksetup -setproxybypassdomains`) is never
+  set. Whether local traffic even reaches sing-box may depend on it, so the
+  direct route rule might not be the only layer involved in local-network
+  access.
+
+### Features
+
+- Domain-based split tunnelling, so chosen domains bypass the proxy. Needs
+  sing-box rule-sets in `.srs` format; Xray `geosite.dat` files do not apply.
+  This is the most requested capability for this class of client.
+- Custom profile groups or folders, distinct from the failover group, which is
+  derived from a subscription rather than chosen.
+- Improve subscription conflict handling for duplicate remote entries beyond
+  the current skip-and-count behaviour.
 
 ## Native Engine Fork Option
 
