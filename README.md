@@ -182,7 +182,7 @@ history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 2. **Generate** — a sing-box JSON configuration is written to `~/.rayline/singbox.json` with owner-only permissions (`0600`).
 3. **Launch** — sing-box is started as a child process; its output is tailed into the log view.
 4. **Proxy** — current macOS SOCKS5 proxy settings are saved, then the system SOCKS5 proxy is set to `127.0.0.1:10808` for all active network services.
-5. **Monitor** — a background timer measures TCP RTT to the VPN server every 3 s and displays it in the status card.
+5. **Monitor** — a background timer measures TCP RTT to the proxy server every 3 s and displays it in the status card.
 6. **Cleanup** — on disconnect, sing-box is terminated, the saved SOCKS5 proxy settings are restored, and the generated config file is deleted.
 
 ---
@@ -192,7 +192,7 @@ history. See [docs/ROADMAP.md](docs/ROADMAP.md) for the product direction.
 - **sing-box supply chain**: the binary is downloaded from a **pinned release tag** (`v1.11.4`) with **SHA256 checksum verification** in both the build script and the Swift app. To update, change the version, tag, and hashes in `App/build.sh` and `App/VPNManager.swift`.
 - **Profile storage**: saved profiles (`~/.rayline/profiles.json`) are written with `0600` permissions — only the owner can read credentials. No sensitive data is stored in UserDefaults.
 - **Subscription storage**: saved subscription URLs (`~/.rayline/subscriptions.json`) are written with `0600` permissions. Treat subscription URLs as secrets because they may contain account tokens.
-- The generated sing-box config file (`~/.rayline/singbox.json`) is written with `0600` permissions so other local users cannot read VPN credentials.
+- The generated sing-box config file (`~/.rayline/singbox.json`) is written with `0600` permissions so other local users cannot read proxy credentials.
 - **Input validation**: URI parsing includes bounds-checked IPv6 bracket stripping, guarded port parsing, and validation for supported proxy URL schemes.
 - All user-supplied strings are JSON-escaped before being embedded in the sing-box config (including control characters such as `\n`, `\r`, `\t`).
 - In the Swift app, `networksetup` is invoked via `Process` with an argument array — no shell is involved, so network service names with special characters cannot cause command injection.

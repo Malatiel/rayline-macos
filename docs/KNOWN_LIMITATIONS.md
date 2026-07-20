@@ -56,7 +56,7 @@ This is the most important limitation to understand before relying on Rayline.
 
 - Profile latency is a TCP reachability and RTT signal to the configured server,
   not a throughput benchmark.
-- A low latency value does not guarantee the best real-world VPN speed.
+- A low latency value does not guarantee the best real-world proxy speed.
 - Timeout means the TCP check did not complete during the measurement window;
   it does not prove the server is permanently offline.
 
