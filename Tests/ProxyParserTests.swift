@@ -323,6 +323,39 @@ final class ProxyParserTests: XCTestCase {
         return outbound["tls"] as? [String: Any]
     }
 
+    // MARK: - Credential exposure
+
+    /// A rebuilt link is the one place profile secrets leave the app, so the
+    /// check that gates the copy confirmation has to hold for every protocol.
+    func testEveryProtocolLinkIsMarkedAsCarryingCredentials() throws {
+        let uris = [
+            "vless://a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5@v.io:443?security=tls",
+            "vmess://\(Data(#"{"v":"2","ps":"N","add":"m.io","port":443,"id":"11112222-3333-4444-5555-666677778888","aid":0,"net":"tcp","tls":"tls"}"#.utf8).base64EncodedString())",
+            "ss://\(Data("aes-256-gcm:password".utf8).base64EncodedString())@s.io:8388",
+            "trojan://pw@t.io:443?security=tls",
+        ]
+        for uri in uris {
+            let cfg = try ProxyParser.parse(uri)
+            XCTAssertTrue(
+                cfg.carriesCredentials,
+                "Link for \(uri) carries a secret and must be treated as such"
+            )
+        }
+    }
+
+    func testProfileWithoutASecretIsNotFlagged() {
+        let bare = ProxyConfig(proto: .vless, uuid: "", server: "v.io", port: 443)
+        XCTAssertFalse(bare.carriesCredentials)
+    }
+
+    /// The secret must really be present in what gets copied — otherwise the
+    /// warning would be describing a risk that is not there.
+    func testRebuiltLinkActuallyContainsTheSecret() throws {
+        let cfg = try ProxyParser.parse("trojan://s3cr3tpw@t.io:443?security=tls")
+        XCTAssertTrue(cfg.toURL().contains("s3cr3tpw"))
+        XCTAssertTrue(cfg.carriesCredentials)
+    }
+
     // MARK: - sing-box Routing
 
     /// Every generated config must send private/loopback destinations straight

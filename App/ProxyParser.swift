@@ -29,6 +29,14 @@ struct ProxyConfig: Codable, Identifiable, Equatable, Sendable {
 
     var isValid: Bool { !server.isEmpty && (1...65535).contains(port) }
 
+    /// Whether a link rebuilt from this profile would carry a secret.
+    ///
+    /// `uuid` holds the VLESS/VMess id and doubles as the Shadowsocks and Trojan
+    /// password, so it is the one field that turns a shareable link into a
+    /// credential. Anything reconstructing a URL for the user to pass around
+    /// should check this first.
+    var carriesCredentials: Bool { !uuid.isEmpty }
+
     var protoName: String {
         switch proto {
         case .vless:        return "VLESS"

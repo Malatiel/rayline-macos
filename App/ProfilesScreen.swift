@@ -31,6 +31,15 @@ struct ProfilesScreen: View {
     let deleteSubscription: (UUID) -> Void
     let openStatus: () -> Void
 
+    /// Profile whose link is waiting on the user to confirm the copy.
+    @State private var profilePendingCopy: ProxyConfig?
+
+    private func copyProfileLink(_ cfg: ProxyConfig) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(cfg.toURL(), forType: .string)
+        toastManager.show(lang.t("Ссылка скопирована", "Link copied"), style: .success)
+    }
+
     private var trimmed: String {
         urlText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -129,6 +138,28 @@ struct ProfilesScreen: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .confirmationDialog(
+            lang.t("Скопировать ссылку с паролем?", "Copy a link containing credentials?"),
+            isPresented: Binding(
+                get: { profilePendingCopy != nil },
+                set: { if !$0 { profilePendingCopy = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: profilePendingCopy
+        ) { cfg in
+            Button(lang.t("Скопировать", "Copy")) {
+                copyProfileLink(cfg)
+                profilePendingCopy = nil
+            }
+            Button(lang.t("Отмена", "Cancel"), role: .cancel) {
+                profilePendingCopy = nil
+            }
+        } message: { cfg in
+            Text(lang.t(
+                "Ссылка на «\(cfg.name.isEmpty ? cfg.server : cfg.name)» содержит пароль от сервера. Любой, кто её получит, сможет подключаться от вашего имени. Буфер обмена читают другие приложения.",
+                "The link to “\(cfg.name.isEmpty ? cfg.server : cfg.name)” contains the server password. Anyone who receives it can connect as you. Other apps can read the clipboard."
+            ))
+        }
     }
 
     private func profileRowCard(_ cfg: ProxyConfig, row: ProfilesSummary.Row?) -> some View {
@@ -221,9 +252,14 @@ struct ProfilesScreen: View {
                 Spacer()
 
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(cfg.toURL(), forType: .string)
-                    toastManager.show(lang.t("Ссылка скопирована", "Link copied"), style: .success)
+                    // A rebuilt link carries the profile's password, so ask
+                    // before it lands on the clipboard, where other apps can
+                    // read it and a later paste can go anywhere.
+                    if cfg.carriesCredentials {
+                        profilePendingCopy = cfg
+                    } else {
+                        copyProfileLink(cfg)
+                    }
                 } label: {
                     Label(lang.t("Копировать", "Copy"), systemImage: "doc.on.doc")
                         .font(.system(size: 11))
