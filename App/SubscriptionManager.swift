@@ -47,6 +47,7 @@ struct SubscriptionRefreshResult: Equatable {
 
 enum SubscriptionError: LocalizableError, Equatable {
     case invalidURL
+    case proxyLinkNotSubscription
     case duplicateURL
     case sourceNotFound
 
@@ -54,6 +55,11 @@ enum SubscriptionError: LocalizableError, Equatable {
         switch self {
         case .invalidURL:
             return LocalizedMessage(ru: "Введите HTTP(S) ссылку подписки", en: "Enter an HTTP(S) subscription URL")
+        case .proxyLinkNotSubscription:
+            return LocalizedMessage(
+                ru: "Это ссылка на профиль, а не подписка — вставьте её в поле импорта ниже",
+                en: "This is a profile link, not a subscription — paste it into the import field below"
+            )
         case .duplicateURL:
             return LocalizedMessage(ru: "Такая подписка уже добавлена", en: "This subscription is already added")
         case .sourceNotFound:
@@ -355,8 +361,29 @@ final class SubscriptionManager: ObservableObject {
         return fastest
     }
 
+    /// Schemes that identify a single proxy profile rather than a subscription.
+    /// Pasting one of these into the subscription field is an easy mistake: the
+    /// two inputs sit next to each other, so the error needs to say where the
+    /// link actually belongs instead of just rejecting it.
+    private static let proxyLinkSchemes: Set<String> = ["vless", "vmess", "ss", "trojan"]
+
+    /// Reads the scheme by hand rather than via `URL(string:)`, because proxy
+    /// links can carry characters that make `URL` parsing return nil — in which
+    /// case we would lose the very information needed to explain the mistake.
+    private func schemePrefix(of raw: String) -> String? {
+        guard let colon = raw.firstIndex(of: ":") else { return nil }
+        let scheme = raw[raw.startIndex..<colon].lowercased()
+        return scheme.isEmpty ? nil : scheme
+    }
+
     private func normalizeURL(_ raw: String) throws -> URL {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let scheme = schemePrefix(of: trimmed),
+           Self.proxyLinkSchemes.contains(scheme) {
+            throw SubscriptionError.proxyLinkNotSubscription
+        }
+
         guard let url = URL(string: trimmed),
               ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
             throw SubscriptionError.invalidURL

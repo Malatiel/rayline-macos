@@ -33,6 +33,67 @@ final class SubscriptionManagerTests: XCTestCase {
         XCTAssertEqual(perms, 0o600)
     }
 
+    /// The subscription URL field sits directly above the profile import area,
+    /// so pasting a proxy link into it is the expected mistake. The error has to
+    /// point at the right field rather than just saying the URL is wrong.
+    func testGivenProxyLinkInSubscriptionFieldThenErrorPointsAtImportField() throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        let proxyLinks = [
+            "vless://371c6ed2-f39b-4076-8046-caa928bf0f5e@example.com:443?security=reality&fp=edge#Name",
+            "vmess://eyJ2IjoiMiJ9",
+            "ss://YWVzLTI1Ni1nY206cHc=@example.com:8388",
+            "trojan://pw@example.com:443?security=tls",
+            "VLESS://371c6ed2-f39b-4076-8046-caa928bf0f5e@example.com:443",
+        ]
+
+        for link in proxyLinks {
+            XCTAssertThrowsError(
+                try manager.addSource(urlString: link, name: "1"),
+                "Proxy link \(link) must be rejected as a subscription"
+            ) { error in
+                XCTAssertEqual(
+                    error as? SubscriptionError, .proxyLinkNotSubscription,
+                    "Proxy link \(link) must get the redirecting message, not a generic one"
+                )
+            }
+        }
+    }
+
+    func testGivenProxyLinkWithSurroundingWhitespaceThenItIsStillRecognised() throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        XCTAssertThrowsError(
+            try manager.addSource(urlString: "  trojan://pw@example.com:443\n", name: "")
+        ) { error in
+            XCTAssertEqual(error as? SubscriptionError, .proxyLinkNotSubscription)
+        }
+    }
+
+    /// Input that is neither a proxy link nor an HTTP(S) URL must keep the
+    /// original message — the new case must not swallow ordinary typos.
+    func testGivenNonProxyGarbageThenItStillReportsInvalidURL() throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        for bad in ["1", "example.com/sub", "ftp://example.com/sub", ""] {
+            XCTAssertThrowsError(
+                try manager.addSource(urlString: bad, name: ""),
+                "Input \(bad) must be rejected"
+            ) { error in
+                XCTAssertEqual(
+                    error as? SubscriptionError, .invalidURL,
+                    "Input \(bad) must still report invalidURL"
+                )
+            }
+        }
+    }
+
+    func testGivenHTTPSSubscriptionThenProxyDetectionDoesNotInterfere() throws {
+        let manager = SubscriptionManager(subscriptionsDir: tmpDir)
+        let source = try manager.addSource(
+            urlString: "https://sub.example/list?token=abc",
+            name: "Primary"
+        )
+        XCTAssertEqual(source.url, "https://sub.example/list?token=abc")
+    }
+
     func testGivenDuplicateSubscriptionURLWhenAddedThenItThrowsDuplicate() throws {
         let manager = SubscriptionManager(subscriptionsDir: tmpDir)
         _ = try manager.addSource(urlString: "https://subscriptions.example/list.txt", name: "Primary")
