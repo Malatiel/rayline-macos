@@ -45,8 +45,8 @@ enum TCPProbe {
 
 /// Resumes a probe's continuation exactly once and cancels the connection,
 /// regardless of which of the racing events (ready / failed / timeout) fires
-/// first.
-private final class ProbeResumeOnce: @unchecked Sendable {
+/// first. Shared with `SocksProbe`, which races the same way across more steps.
+final class ProbeResumeOnce: @unchecked Sendable {
     private let lock = NSLock()
     private var didResume = false
     private let connection: NWConnection

@@ -212,4 +212,43 @@ final class StatusSummaryTests: XCTestCase {
             name: name
         )
     }
+
+    // MARK: - Tunnel verification warning
+
+    private func summary(state: VPNManager.State, tunnelVerified: Bool?) -> StatusSummary {
+        StatusSummary(
+            state: state,
+            displayConfig: nil,
+            hasLaunchInput: true,
+            hasSingBox: true,
+            pingMs: 12,
+            packetsSent: 1,
+            packetsRecv: 1,
+            tunnelVerified: tunnelVerified,
+            language: .en
+        )
+    }
+
+    /// The case the check exists for: latency looks fine, nothing passes.
+    func testConnectedWithFailedTunnelCheckShowsAWarning() {
+        let warning = summary(state: .connected, tunnelVerified: false).tunnelWarning
+        XCTAssertNotNil(warning)
+        XCTAssertTrue(warning?.contains("no traffic passes") == true)
+    }
+
+    func testConnectedWithVerifiedTunnelStaysQuiet() {
+        XCTAssertNil(summary(state: .connected, tunnelVerified: true).tunnelWarning)
+    }
+
+    func testUncheckedTunnelStaysQuiet() {
+        XCTAssertNil(summary(state: .connected, tunnelVerified: nil).tunnelWarning,
+                     "Not yet checked must not be reported as broken")
+    }
+
+    func testDisconnectedStateNeverWarnsAboutTheTunnel() {
+        for state in [VPNManager.State.disconnected, .connecting, .disconnecting] {
+            XCTAssertNil(summary(state: state, tunnelVerified: false).tunnelWarning,
+                         "State \(state) must not show a tunnel warning")
+        }
+    }
 }

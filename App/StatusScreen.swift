@@ -22,6 +22,7 @@ struct StatusScreen: View {
             pingMs: vpn.pingMs,
             packetsSent: vpn.packetsSent,
             packetsRecv: vpn.packetsRecv,
+            tunnelVerified: vpn.tunnelVerified,
             language: lang.language
         )
     }
@@ -150,6 +151,20 @@ struct StatusScreen: View {
                 }
                 .padding(12)
                 .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+            }
+
+            if let tunnelWarning = summary.tunnelWarning {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "exclamationmark.shield.fill")
+                        .foregroundStyle(.red)
+                    Text(tunnelWarning)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
             }
 
             HStack(spacing: 14) {

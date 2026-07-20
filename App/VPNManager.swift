@@ -36,6 +36,12 @@ final class VPNManager: ObservableObject {
     @Published var packetsSent: Int  = 0
     @Published var packetsRecv: Int  = 0
 
+    /// Whether traffic was last seen actually passing through the tunnel.
+    /// `nil` means not checked yet. Distinct from `pingMs`, which only says the
+    /// server's port answers and stays healthy-looking with dead credentials.
+    @Published private(set) var tunnelVerified: Bool?
+    @Published private(set) var isVerifyingTunnel = false
+
     @Published var killSwitchEnabled: Bool = false {
         didSet { UserDefaults.standard.set(killSwitchEnabled, forKey: "killSwitchEnabled") }
     }
@@ -61,6 +67,7 @@ final class VPNManager: ObservableObject {
     nonisolated static let socksPollInterval: TimeInterval = 0.2   // delay between readiness attempts
     nonisolated static let pingInterval: TimeInterval = 3.0        // how often the connected-state RTT refreshes
     nonisolated static let pingTimeout: TimeInterval = 2.0         // per-ping TCP connect timeout
+    nonisolated static let tunnelVerifyTimeout: TimeInterval = 10.0 // full SOCKS handshake + request through the tunnel
 
     // Directory where we install sing-box
     nonisolated static let installDir: URL = AppPaths.defaultDataDir
@@ -356,6 +363,7 @@ final class VPNManager: ObservableObject {
         state = .connected
         connectedAt = Date()
         startPing(host: cfg.server, port: cfg.port)
+        verifyTunnel()
     }
 
     // MARK: - Disconnect
@@ -650,11 +658,49 @@ final class VPNManager: ObservableObject {
     private func stopPing() {
         pingTimer?.invalidate(); pingTimer = nil
         pingMs = nil; packetsSent = 0; packetsRecv = 0
+        // The previous verdict describes a tunnel that no longer exists.
+        tunnelVerified = nil
     }
 
     func refreshPing() {
         guard state.isConnected, let cfg = config else { return }
         measureRTT(host: cfg.server, port: cfg.port)
+        verifyTunnel()
+    }
+
+    /// Sends one real request through the local SOCKS proxy to confirm the
+    /// tunnel carries traffic.
+    ///
+    /// Deliberately run only on connect and on manual refresh, never on the
+    /// repeating ping: it opens a connection to an outside host, and doing that
+    /// every few seconds would amount to a traffic pattern this app has no
+    /// business generating.
+    func verifyTunnel() {
+        guard state.isConnected, !isVerifyingTunnel else { return }
+        isVerifyingTunnel = true
+        let L = LanguageManager.shared
+
+        Task { [weak self] in
+            let ms = await SocksProbe.measure(
+                socksPort: Self.socksPort,
+                timeout: Self.tunnelVerifyTimeout
+            )
+            guard let self else { return }
+            self.isVerifyingTunnel = false
+            // A disconnect may have landed while the probe was in flight.
+            guard self.state.isConnected else { return }
+
+            self.tunnelVerified = ms != nil
+            if let ms {
+                self.addLog(L.t("Туннель проверен: трафик проходит (\(ms) мс)",
+                                "Tunnel verified: traffic passes (\(ms) ms)"))
+            } else {
+                self.addLog(L.t(
+                    "⚠️ Туннель не пропускает трафик — проверьте профиль (ключи, REALITY, срок действия)",
+                    "⚠️ Tunnel is not passing traffic — check the profile (keys, REALITY, expiry)"
+                ))
+            }
+        }
     }
 
     private func measureRTT(host: String, port: Int) {

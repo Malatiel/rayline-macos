@@ -21,6 +21,9 @@ struct StatusSummary {
     let trafficMetric: String
     let routeSummary: String
     let recoveryHint: String?
+    /// Shown only when the tunnel was checked and found not to carry traffic.
+    /// A healthy or unchecked tunnel says nothing, so the card stays quiet.
+    let tunnelWarning: String?
     let needsFirstRunSetup: Bool
     let firstRunTitle: String
     let setupSteps: [SetupStep]
@@ -33,8 +36,14 @@ struct StatusSummary {
         pingMs: Int?,
         packetsSent: Int,
         packetsRecv: Int,
+        tunnelVerified: Bool? = nil,
         language: AppLanguage
     ) {
+        self.tunnelWarning = Self.tunnelWarning(
+            state,
+            tunnelVerified: tunnelVerified,
+            language: language
+        )
         self.stateLabel = Self.stateLabel(state, language: language)
         self.statusText = Self.statusText(
             state,
@@ -182,6 +191,22 @@ struct StatusSummary {
             return text(ru: "Остановить подключение", en: "Stop connecting", language: language)
         }
         return text(ru: "Подключить", en: "Connect", language: language)
+    }
+
+    /// A latency reading proves only that the server's port answers, so a
+    /// connected state with a failed tunnel check must be called out — that is
+    /// exactly the case where everything looks green and nothing works.
+    private static func tunnelWarning(
+        _ state: VPNManager.State,
+        tunnelVerified: Bool?,
+        language: AppLanguage
+    ) -> String? {
+        guard state.isConnected, tunnelVerified == false else { return nil }
+        return text(
+            ru: "Подключено, но трафик через туннель не проходит — проверьте профиль",
+            en: "Connected, but no traffic passes through the tunnel — check the profile",
+            language: language
+        )
     }
 
     private static func recoveryHint(_ state: VPNManager.State, language: AppLanguage) -> String? {
