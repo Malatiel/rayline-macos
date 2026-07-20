@@ -12,6 +12,25 @@ This project uses semantic versioning where possible:
 
 No unreleased changes yet.
 
+## 1.2.1 - 2026-07-20
+
+### Added
+
+- Copying a profile link now asks for confirmation first, since the link
+  carries the server password and the clipboard is readable by other apps.
+
+### Fixed
+
+- Release notes no longer list Apple Silicon by chip generation. The previous
+  wording named M1, M2 and M3, which went stale with every new chip and read as
+  if newer Macs were unsupported. Every Apple Silicon Mac runs the same arm64
+  build.
+
+### Documentation
+
+- The roadmap now describes what actually shipped, and records the release's
+  outstanding verification work instead of implying there is none.
+
 ## 1.2.0 - 2026-07-20
 
 ### Added
