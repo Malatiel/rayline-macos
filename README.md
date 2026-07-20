@@ -1,7 +1,12 @@
 # Rayline
 
-A lightweight macOS VPN client for **VLESS**, **VMess**, **Shadowsocks**, and **Trojan** protocols.
+A lightweight macOS proxy client for **VLESS**, **VMess**, **Shadowsocks**, and **Trojan** protocols.
 Connects via [sing-box](https://github.com/SagerNet/sing-box) and sets the system SOCKS5 proxy automatically.
+
+> **Scope:** Rayline is not a system-wide VPN and does not create a TUN interface.
+> It routes traffic by setting the macOS system SOCKS5 proxy, so only applications
+> that honour that setting are covered — others connect directly. See
+> [Traffic Coverage](docs/KNOWN_LIMITATIONS.md#traffic-coverage) before relying on it.
 
 Rayline's main app is intentionally a native macOS UI around sing-box, not a
 self-written protocol engine. Native protocol experiments, if any, are kept out

@@ -10,6 +10,30 @@ whether Rayline fits their needs.
 - Stable release readiness depends on successful CI, artifact verification, and
   manual GUI verification.
 
+## Traffic Coverage
+
+This is the most important limitation to understand before relying on Rayline.
+
+- Rayline is not a system-wide VPN and does not create a TUN interface. It runs
+  sing-box locally and points the macOS **system SOCKS5 proxy** setting at it.
+- Only applications that honour the macOS system proxy setting are routed
+  through the proxy. Applications that ignore that setting connect directly,
+  in the clear, with your real IP address.
+- Applications that commonly ignore the system SOCKS proxy setting include many
+  command-line tools, container runtimes, and some applications that ship their
+  own network stack.
+- UDP traffic is generally not covered by the macOS SOCKS proxy setting, so
+  protocols that rely on UDP are typically not routed.
+- Traffic to local and private network addresses currently also goes through
+  the proxy, which can break access to devices on your own network such as a
+  router admin page, a NAS, or a printer.
+- The kill switch keeps the system proxy active when the connection drops, so
+  applications that honour the proxy fail closed rather than leaking. It does
+  **not** stop traffic from applications that bypass the proxy setting in the
+  first place, because that traffic never went through the proxy.
+- If your threat model requires that *all* traffic from the machine is covered,
+  Rayline in its current form does not meet it.
+
 ## macOS Signing And Notarization
 
 - Local builds are ad-hoc signed.
