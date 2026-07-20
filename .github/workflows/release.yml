@@ -153,4 +153,4 @@ jobs:
 
             ### Requirements
             - macOS 13 Ventura or newer
-            - Apple Silicon (M1/M2/M3) or Intel
+            - Apple Silicon (arm64) or Intel (x86_64)
